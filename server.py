@@ -60,22 +60,21 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집 (신규 search-api 도메인 및 v3 적용)
+    # 2. 중고나라 수집 (edge-live 도메인 실시간 매물 수집)
     for page in range(1, 4):
         try:
-            # 신규 검색 전용 API 엔드포인트
-            joonggo_url = f"https://search-api.joongna.com/v3/search/products?searchKeyword={encoded_keyword}&page={page}&pageSize=30&sort=RECENT_DATE"
+            # edge-live 매물 목록 API 및 검색 API 병행
+            joonggo_url = f"https://edge-live.joongna.com/api/product/search?searchKeyword={encoded_keyword}&page={page}&pageSize=30&sort=RECENT_DATE"
             res = requests.get(joonggo_url, headers=HEADERS, timeout=5)
             
-            # 만약 v3/search/products가 응답을 안 줄 경우 v2 경로 백업
-            if res.status_code != 200:
-                joonggo_url = f"https://search-api.joongna.com/v2/search/products?searchKeyword={encoded_keyword}&page={page}&pageSize=30&sort=RECENT_DATE"
+            # fallback: v1/all 엔드포인트
+            if res.status_code != 200 or not res.json().get('data'):
+                joonggo_url = f"https://edge-live.joongna.com/api/web-ads/total?type=SEARCH&keyword={encoded_keyword}"
                 res = requests.get(joonggo_url, headers=HEADERS, timeout=5)
 
             if res.status_code == 200:
                 data = res.json()
-                # 데이터 트레이싱
-                items = data.get('data', {}).get('items', []) or data.get('data', []) or data.get('items', [])
+                items = data.get('data', {}).get('items', []) or data.get('data', []) or data.get('items', []) or data.get('list', [])
                 
                 if not items:
                     break
@@ -83,7 +82,7 @@ def search_products(keyword: str):
                 for item in items:
                     reg_date = item.get('sortDate') or item.get('regDate') or item.get('articleRegDate') or 0
                     update_time = int(reg_date / 1000) if reg_date > 10000000000 else int(reg_date)
-                    img_url = item.get('detailImgUrl') or item.get('productImg') or item.get('imgUrl') or item.get('mediaUrl') or ''
+                    img_url = item.get('detailImgUrl') or item.get('productImg') or item.get('imgUrl') or item.get('mediaUrl') or item.get('imageUrl') or ''
                     product_id = item.get('seq') or item.get('productSeq') or item.get('articleSeq') or item.get('id')
                     
                     if product_id:
@@ -91,7 +90,7 @@ def search_products(keyword: str):
                             "id": f"joong-{product_id}",
                             "platform": "중고나라",
                             "platformColor": "bg-blue-600",
-                            "title": item.get('title') or item.get('productTitle') or item.get('articleTitle'),
+                            "title": item.get('title') or item.get('productTitle') or item.get('articleTitle') or item.get('name'),
                             "price": int(item.get('price', 0)),
                             "location": item.get('locationName') or item.get('location') or '전국',
                             "imageUrl": img_url,
