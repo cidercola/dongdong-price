@@ -32,10 +32,10 @@
                 </div>
             </a>
             
-            <!-- 버전 표기 v1.7 -->
+            <!-- 버전 표기 v1.8 -->
             <div class="text-xs bg-slate-900/80 border border-slate-800 text-slate-300 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
                 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span class="font-bold text-indigo-400">v1.7</span>
+                <span class="font-bold text-indigo-400">v1.8</span>
                 <span class="text-slate-500">|</span>
                 <span class="text-slate-400 font-medium">플랫폼별 맞춤 타임스탬프 로직 적용</span>
             </div>
@@ -53,7 +53,7 @@
                     <span class="bg-gradient-to-r from-indigo-300 via-cyan-300 to-indigo-400 bg-clip-text text-transparent">한눈에 비교하고 탐색하세요</span>
                 </h2>
                 <p class="text-slate-400 text-sm max-w-xl mx-auto mb-8 font-light">
-                    번개장터와 중고나라에 방금 올라온 매물들을 수집하여 플랫폼별로 깔끔하게 정렬해 드립니다.
+                    번개장터와 중고나라에 방금 올라온 최신 매물을 수집하여 플랫폼별로 깔끔하게 정렬해 드립니다.
                 </p>
 
                 <!-- 검색바 & 플랫폼 선택 -->
@@ -99,7 +99,7 @@
             <div id="filterBar" class="hidden flex-col gap-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 mb-8 backdrop-blur-md">
                 
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                    <!-- 개수 요약 -->
+                    <!-- 개수 요약 + 12시간 이내 수집 안내 문구 추가 -->
                     <div class="flex flex-wrap items-center gap-3">
                         <span id="resultKeyword" class="text-sm font-bold text-slate-300"></span>
                         <span id="badgeTotal" class="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">총 0개</span>
@@ -107,6 +107,9 @@
                             <span id="badgeBunjang" class="text-[11px] font-semibold text-red-400 bg-red-500/10 px-2.5 py-0.5 rounded-md">번개장터 0개</span>
                             <span id="badgeJoongna" class="text-[11px] font-semibold text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-md">중고나라 0개</span>
                         </div>
+                        <span class="text-[11px] text-slate-400 bg-slate-950/80 border border-slate-800/60 px-3 py-1 rounded-lg flex items-center gap-1.5 ml-1">
+                            <i class="fa-solid fa-bolt text-indigo-400 text-[10px]"></i> 최신 12시간 이내 등록 매물 위주로 탐색됩니다.
+                        </span>
                     </div>
 
                     <!-- 정렬 / 가격 범위 / 제외 키워드 -->
@@ -306,7 +309,21 @@
             }
 
             filtered.forEach(item => {
-                const timeAgoText = item.timeAgo || '최신';
+                // 중고나라 툴팁 UI 및 텍스트 분기 처리
+                let timeDisplay = '';
+                if (item.platform === '중고나라') {
+                    timeDisplay = `
+                        <div class="relative group/time flex items-center cursor-help">
+                            <span class="text-cyan-400 font-semibold bg-cyan-500/10 border border-cyan-500/20 px-1.5 py-0.5 rounded text-[10px]">실시간 최신</span>
+                            <!-- 툴팁 풍선 -->
+                            <div class="absolute bottom-full right-0 mb-2 hidden group-hover/time:block w-48 p-2 bg-slate-900 border border-slate-700 text-[10px] text-slate-300 rounded-lg shadow-xl z-20 leading-tight">
+                                <i class="fa-solid fa-circle-info text-cyan-400 mr-1"></i>중고나라는 빠른 조회를 위해 실시간 최신순 매물로 통합 제공됩니다.
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    timeDisplay = `<span><i class="fa-regular fa-clock text-[9px] mr-1"></i>${item.timeAgo || '방금 전'}</span>`;
+                }
 
                 const card = `
                     <a href="${item.link}" target="_blank" class="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden hover:border-indigo-500/50 transition-all flex flex-col group shadow-lg">
@@ -322,7 +339,7 @@
                                 <div class="text-base font-extrabold text-white tracking-tight">${item.price.toLocaleString()}원</div>
                                 <div class="text-[11px] text-slate-500 mt-2 flex justify-between items-center">
                                     <span><i class="fa-solid fa-location-dot text-[9px] mr-1"></i>${item.location}</span>
-                                    <span><i class="fa-regular fa-clock text-[9px] mr-1"></i>${timeAgoText}</span>
+                                    ${timeDisplay}
                                 </div>
                             </div>
                         </div>
