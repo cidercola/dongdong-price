@@ -32,12 +32,12 @@
                 </div>
             </a>
             
-            <!-- 버전 표기 v1.5 -->
+            <!-- 버전 표기 v1.7 -->
             <div class="text-xs bg-slate-900/80 border border-slate-800 text-slate-300 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
                 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span class="font-bold text-indigo-400">v1.5</span>
+                <span class="font-bold text-indigo-400">v1.7</span>
                 <span class="text-slate-500">|</span>
-                <span class="text-slate-400 font-medium">백엔드 실시간 상대시간 변환 연동</span>
+                <span class="text-slate-400 font-medium">플랫폼별 맞춤 타임스탬프 로직 적용</span>
             </div>
         </nav>
 
@@ -306,7 +306,7 @@
             }
 
             filtered.forEach(item => {
-                const timeAgoText = item.timeAgo || '방금 전';
+                const timeAgoText = item.timeAgo || '최신';
 
                 const card = `
                     <a href="${item.link}" target="_blank" class="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden hover:border-indigo-500/50 transition-all flex flex-col group shadow-lg">
