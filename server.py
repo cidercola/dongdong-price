@@ -55,7 +55,7 @@ def search_products(keyword: str):
                         "price": int(item.get('price', 0)),
                         "location": item.get('location') or '전국',
                         "imageUrl": img_url,
-                        "createdAt": update_time if update_time > 0 else now_ts,
+                        "createdAt": now_ts,
                         "link": f"https://m.bunjang.co.kr/products/{item.get('pid')}"
                     })
         except Exception as e:
