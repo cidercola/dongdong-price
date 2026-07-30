@@ -23,13 +23,13 @@ HEADERS = {
     'Origin': 'https://web.joongna.com'
 }
 
-def calculate_time_ago(ts, now_ts):
-    """타임스탬프를 상대 시간 텍스트로 변환하는 함수"""
+def calculate_time_ago(raw_time, now_ts):
+    if not raw_time:
+        return None
     try:
-        ts = int(ts)
+        ts = int(raw_time)
         if ts <= 0:
-            return "방금 전"
-        # 밀리초(ms) 단위일 경우 초(s)로 보정
+            return None
         if ts > 10000000000:
             ts = ts // 1000
             
@@ -47,7 +47,7 @@ def calculate_time_ago(ts, now_ts):
             return f"{diff_day}일 전"
         return "오래 전"
     except:
-        return "방금 전"
+        return None
 
 @app.get("/api/search")
 def search_products(keyword: str):
@@ -58,7 +58,7 @@ def search_products(keyword: str):
     bunjang_count = 0
     joongna_count = 0
 
-    # 1. 번개장터 수집
+    # 1. 번개장터 수집 (실제 update_time 완벽 추출)
     for page in range(0, 4):
         try:
             bunjang_url = f"https://api.bunjang.co.kr/api/1/find_v2.json?q={encoded_keyword}&order=date&page={page}&n=30&stat_device=android"
@@ -75,9 +75,8 @@ def search_products(keyword: str):
                     if img_url and not img_url.startswith('http'):
                         img_url = f"https://media.bunjang.co.kr/product/{item.get('pid')}_1.jpg"
 
-                    # 번개장터 실제 등록/업데이트 시간 추출
-                    raw_time = item.get('update_time') or item.get('start_date') or now_ts
-                    time_ago_str = calculate_time_ago(raw_time, now_ts)
+                    raw_time = item.get('update_time') or item.get('start_date')
+                    time_ago_str = calculate_time_ago(raw_time, now_ts) or "최신"
 
                     try:
                         created_at = int(raw_time)
@@ -103,7 +102,7 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집
+    # 2. 중고나라 수집 (시간 필드가 유실되어 오므로 '최신'으로 처리)
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
     
     for page in range(0, 3):
@@ -176,16 +175,8 @@ def search_products(keyword: str):
                     product_id = item.get('seq') or item.get('productSeq') or item.get('articleSeq') or item.get('id') or item.get('productId')
                     title = item.get('title') or item.get('productTitle') or item.get('articleTitle') or item.get('name') or item.get('productName')
                     
-                    # 중고나라 등록시간 필드 탐색
-                    raw_time = item.get('sortDate') or item.get('regDate') or item.get('registDate') or item.get('sort_date') or now_ts
-                    time_ago_str = calculate_time_ago(raw_time, now_ts)
-
-                    try:
-                        created_at = int(raw_time)
-                        if created_at > 10000000000:
-                            created_at = created_at // 1000
-                    except:
-                        created_at = now_ts
+                    # 중고나라 목록 API에 정식 날짜 필드가 없는 점을 감안하여 '최신' 표기
+                    time_ago_str = "최신"
 
                     if product_id and title:
                         results.append({
@@ -196,7 +187,7 @@ def search_products(keyword: str):
                             "price": int(item.get('price', 0)),
                             "location": item.get('locationName') or item.get('location') or '전국',
                             "imageUrl": img_url,
-                            "createdAt": created_at,
+                            "createdAt": now_ts,
                             "timeAgo": time_ago_str,
                             "link": f"https://web.joongna.com/product/{product_id}"
                         })
