@@ -23,13 +23,42 @@ HEADERS = {
     'Origin': 'https://web.joongna.com'
 }
 
+def calculate_time_ago(ts, now_ts):
+    """타임스탬프를 상대 시간 텍스트로 변환하는 함수"""
+    try:
+        ts = int(ts)
+        if ts <= 0:
+            return "방금 전"
+        # 밀리초(ms) 단위일 경우 초(s)로 보정
+        if ts > 10000000000:
+            ts = ts // 1000
+            
+        diff_sec = now_ts - ts
+        if diff_sec < 60:
+            return "방금 전"
+        diff_min = diff_sec // 60
+        if diff_min < 60:
+            return f"{diff_min}분 전"
+        diff_hour = diff_min // 60
+        if diff_hour < 24:
+            return f"{diff_hour}시간 전"
+        diff_day = diff_hour // 24
+        if diff_day < 30:
+            return f"{diff_day}일 전"
+        return "오래 전"
+    except:
+        return "방금 전"
+
 @app.get("/api/search")
 def search_products(keyword: str):
     results = []
     encoded_keyword = urllib.parse.quote(keyword)
     now_ts = int(time.time())
 
-    # 1. 번개장터 수집 (진짜 등록시간 update_time 반영)
+    bunjang_count = 0
+    joongna_count = 0
+
+    # 1. 번개장터 수집
     for page in range(0, 4):
         try:
             bunjang_url = f"https://api.bunjang.co.kr/api/1/find_v2.json?q={encoded_keyword}&order=date&page={page}&n=30&stat_device=android"
@@ -46,9 +75,16 @@ def search_products(keyword: str):
                     if img_url and not img_url.startswith('http'):
                         img_url = f"https://media.bunjang.co.kr/product/{item.get('pid')}_1.jpg"
 
-                    # 번개장터 실제 등록/업데이트 시간
-                    update_time = int(item.get('update_time', 0))
-                    created_at = update_time if update_time > 0 else now_ts
+                    # 번개장터 실제 등록/업데이트 시간 추출
+                    raw_time = item.get('update_time') or item.get('start_date') or now_ts
+                    time_ago_str = calculate_time_ago(raw_time, now_ts)
+
+                    try:
+                        created_at = int(raw_time)
+                        if created_at > 10000000000:
+                            created_at = created_at // 1000
+                    except:
+                        created_at = now_ts
 
                     results.append({
                         "id": f"bunk-{item.get('pid')}",
@@ -59,13 +95,15 @@ def search_products(keyword: str):
                         "location": item.get('location') or '전국',
                         "imageUrl": img_url,
                         "createdAt": created_at,
+                        "timeAgo": time_ago_str,
                         "link": f"https://m.bunjang.co.kr/products/{item.get('pid')}"
                     })
+                    bunjang_count += 1
         except Exception as e:
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집 (진짜 등록시간 sortDate / regDate 탐색)
+    # 2. 중고나라 수집
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
     
     for page in range(0, 3):
@@ -138,10 +176,14 @@ def search_products(keyword: str):
                     product_id = item.get('seq') or item.get('productSeq') or item.get('articleSeq') or item.get('id') or item.get('productId')
                     title = item.get('title') or item.get('productTitle') or item.get('articleTitle') or item.get('name') or item.get('productName')
                     
-                    # 중고나라 등록 시간 필드 탐색
-                    raw_date = item.get('sortDate') or item.get('regDate') or item.get('registDate') or item.get('createdAt') or now_ts
+                    # 중고나라 등록시간 필드 탐색
+                    raw_time = item.get('sortDate') or item.get('regDate') or item.get('registDate') or item.get('sort_date') or now_ts
+                    time_ago_str = calculate_time_ago(raw_time, now_ts)
+
                     try:
-                        created_at = int(raw_date)
+                        created_at = int(raw_time)
+                        if created_at > 10000000000:
+                            created_at = created_at // 1000
                     except:
                         created_at = now_ts
 
@@ -155,12 +197,19 @@ def search_products(keyword: str):
                             "location": item.get('locationName') or item.get('location') or '전국',
                             "imageUrl": img_url,
                             "createdAt": created_at,
+                            "timeAgo": time_ago_str,
                             "link": f"https://web.joongna.com/product/{product_id}"
                         })
+                        joongna_count += 1
         except Exception as e:
             print("중고나라 수집 오류:", e)
             break
 
-    # 최신 순 정렬
     results.sort(key=lambda x: x['createdAt'], reverse=True)
-    return results
+    
+    return {
+        "totalCount": len(results),
+        "bunjangCount": bunjang_count,
+        "joongnaCount": joongna_count,
+        "items": results
+    }
