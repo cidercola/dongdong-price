@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from curl_cffi import requests as cffi_requests
 import requests
 import urllib.parse
 import time
@@ -61,7 +62,7 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집 (응답 키 자동 추적 로직 탑재)
+    # 2. 중고나라 수집 (curl_cffi로 Chrome 우회)
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
     
     for page in range(0, 3):
@@ -83,25 +84,30 @@ def search_products(keyword: str):
                 "priceFilter": {"minPrice": 0, "maxPrice": 100000000}
             }
             
-            res = requests.post(joonggo_url, headers=HEADERS, json=payload, timeout=5)
+            # impersonate="chrome120" 옵션으로 Chrome 브라우저 통신 지문 우회
+            res = cffi_requests.post(
+                joonggo_url, 
+                headers=HEADERS, 
+                json=payload, 
+                impersonate="chrome120", 
+                timeout=10
+            )
 
             if res.status_code == 200:
                 data = res.json()
                 
-                # 중고나라 내부 깊은 구조(data/items/list/goodsList/content 등) 자동 탐색
+                # 중고나라 응답 구조 파싱
+                inner_data = data.get('data', data)
                 items = []
-                if isinstance(data, dict):
-                    inner_data = data.get('data', data)
-                    if isinstance(inner_data, dict):
-                        items = (
-                            inner_data.get('items') or 
-                            inner_data.get('list') or 
-                            inner_data.get('goodsList') or 
-                            inner_data.get('content') or 
-                            []
-                        )
-                    elif isinstance(inner_data, list):
-                        items = inner_data
+                if isinstance(inner_data, dict):
+                    items = (
+                        inner_data.get('items') or 
+                        inner_data.get('list') or 
+                        inner_data.get('goodsList') or 
+                        []
+                    )
+                elif isinstance(inner_data, list):
+                    items = inner_data
 
                 if not items:
                     break
