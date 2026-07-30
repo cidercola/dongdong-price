@@ -20,24 +20,25 @@
     <div>
         <!-- 상단 네비게이션 바 -->
         <nav class="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <!-- 1. 로고 클릭 시 홈으로 이동 -->
+            <a href="/" class="flex items-center gap-3 group cursor-pointer">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition-transform">
                     <i class="fa-solid fa-bolt text-white text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-black tracking-tight text-white flex items-center gap-2">
+                    <h1 class="text-xl font-black tracking-tight text-white flex items-center gap-2 group-hover:text-indigo-300 transition-colors">
                         동동 시세 검색 <span class="w-2 h-2 rounded-full bg-cyan-400 inline-block animate-pulse"></span>
                     </h1>
                     <p class="text-[11px] font-semibold tracking-wider text-slate-500">REALTIME SECONDHAND MARKET RADAR</p>
                 </div>
-            </div>
+            </a>
             
             <!-- 오른쪽 버전 및 최신 업데이트 내용 표시 영역 -->
             <div class="text-xs bg-slate-900/80 border border-slate-800 text-slate-300 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
                 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span class="font-bold text-indigo-400">v1.2</span>
+                <span class="font-bold text-indigo-400">v1.3</span>
                 <span class="text-slate-500">|</span>
-                <span class="text-slate-400 font-medium">중고나라 보안 우회 & 태그 필터 적용</span>
+                <span class="text-slate-400 font-medium">홈 이동 링크 & 등록 시간 계산 보정</span>
             </div>
         </nav>
 
@@ -183,6 +184,28 @@
             fetchData();
         }
 
+        // 2. 타임스탬프 기반 상대시간 계산 함수 추가
+        function getTimeAgo(timestamp) {
+            if (!timestamp) return '방금 전';
+            
+            // 밀리초 단위 보정
+            let ts = timestamp;
+            if (ts < 10000000000) ts = ts * 1000;
+
+            const now = Date.now();
+            const diffSec = Math.floor((now - ts) / 1000);
+
+            if (diffSec < 60) return '방금 전';
+            const diffMin = Math.floor(diffSec / 60);
+            if (diffMin < 60) return `${diffMin}분 전`;
+            const diffHour = Math.floor(diffMin / 60);
+            if (diffHour < 24) return `${diffHour}시간 전`;
+            const diffDay = Math.floor(diffHour / 24);
+            if (diffDay < 30) return `${diffDay}일 전`;
+            
+            return '오래 전';
+        }
+
         function applyPriceFilter() {
             const minVal = parseInt(document.getElementById('minPrice').value);
             const maxVal = parseInt(document.getElementById('maxPrice').value);
@@ -306,6 +329,9 @@
             }
 
             filtered.forEach(item => {
+                // 실시간 등록 시간 계산
+                const timeAgoText = getTimeAgo(item.createdAt);
+
                 const card = `
                     <a href="${item.link}" target="_blank" class="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden hover:border-indigo-500/50 transition-all flex flex-col group shadow-lg">
                         <div class="relative aspect-square bg-slate-950 overflow-hidden">
@@ -320,7 +346,7 @@
                                 <div class="text-base font-extrabold text-white tracking-tight">${item.price.toLocaleString()}원</div>
                                 <div class="text-[11px] text-slate-500 mt-2 flex justify-between items-center">
                                     <span><i class="fa-solid fa-location-dot text-[9px] mr-1"></i>${item.location}</span>
-                                    <span><i class="fa-regular fa-clock text-[9px] mr-1"></i>방금 전</span>
+                                    <span><i class="fa-regular fa-clock text-[9px] mr-1"></i>${timeAgoText}</span>
                                 </div>
                             </div>
                         </div>
