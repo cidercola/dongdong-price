@@ -17,7 +17,6 @@ app.add_middleware(
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Accept': 'application/json, text/plain, */*',
-    'Content-Type': 'application/json',
     'Referer': 'https://web.joongna.com/',
     'Origin': 'https://web.joongna.com'
 }
@@ -61,34 +60,23 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집 (최신 POST API 및 파라미터 적용)
-    joonggo_api_url = "https://web.joongna.com/api/v2/product/search"
-    
+    # 2. 중고나라 수집 (신규 search-api 도메인 및 v3 적용)
     for page in range(1, 4):
         try:
-            payload = {
-                "searchWord": keyword,
-                "page": page,
-                "size": 30,
-                "sort": "RECENT_DATE"
-            }
+            # 신규 검색 전용 API 엔드포인트
+            joonggo_url = f"https://search-api.joongna.com/v3/search/products?searchKeyword={encoded_keyword}&page={page}&pageSize=30&sort=RECENT_DATE"
+            res = requests.get(joonggo_url, headers=HEADERS, timeout=5)
             
-            # POST 요청으로 변경
-            res = requests.post(joonggo_api_url, headers=HEADERS, json=payload, timeout=5)
-            
-            # 만약 v2 POST 방식 실패 시 GET fallback 처리
+            # 만약 v3/search/products가 응답을 안 줄 경우 v2 경로 백업
             if res.status_code != 200:
-                fallback_url = f"https://web.joongna.com/api/product/search?searchWord={encoded_keyword}&page={page}&size=30&sort=RECENT_DATE"
-                res = requests.get(fallback_url, headers=HEADERS, timeout=5)
+                joonggo_url = f"https://search-api.joongna.com/v2/search/products?searchKeyword={encoded_keyword}&page={page}&pageSize=30&sort=RECENT_DATE"
+                res = requests.get(joonggo_url, headers=HEADERS, timeout=5)
 
             if res.status_code == 200:
                 data = res.json()
-                # 중고나라 응답 객체 데이터 트레이싱
+                # 데이터 트레이싱
                 items = data.get('data', {}).get('items', []) or data.get('data', []) or data.get('items', [])
                 
-                if not items and isinstance(data, list):
-                    items = data
-
                 if not items:
                     break
                 
