@@ -61,7 +61,7 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집 (실제 페이로드 구조 100% 반영)
+    # 2. 중고나라 수집 (응답 키 자동 추적 로직 탑재)
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
     
     for page in range(0, 3):
@@ -87,24 +87,50 @@ def search_products(keyword: str):
 
             if res.status_code == 200:
                 data = res.json()
-                # 중고나라 응답 객체 구조 추적
-                items = data.get('data', {}).get('items', []) or data.get('data', []) or data.get('items', [])
                 
+                # 중고나라 내부 깊은 구조(data/items/list/goodsList/content 등) 자동 탐색
+                items = []
+                if isinstance(data, dict):
+                    inner_data = data.get('data', data)
+                    if isinstance(inner_data, dict):
+                        items = (
+                            inner_data.get('items') or 
+                            inner_data.get('list') or 
+                            inner_data.get('goodsList') or 
+                            inner_data.get('content') or 
+                            []
+                        )
+                    elif isinstance(inner_data, list):
+                        items = inner_data
+
                 if not items:
                     break
                 
                 for item in items:
-                    reg_date = item.get('sortDate') or item.get('regDate') or item.get('articleRegDate') or 0
+                    if not isinstance(item, dict):
+                        continue
+                        
+                    reg_date = item.get('sortDate') or item.get('regDate') or item.get('articleRegDate') or item.get('registDate') or 0
                     update_time = int(reg_date / 1000) if reg_date > 10000000000 else int(reg_date)
-                    img_url = item.get('detailImgUrl') or item.get('productImg') or item.get('imgUrl') or item.get('imageUrl') or ''
-                    product_id = item.get('seq') or item.get('productSeq') or item.get('articleSeq') or item.get('id')
                     
-                    if product_id:
+                    img_url = (
+                        item.get('detailImgUrl') or 
+                        item.get('productImg') or 
+                        item.get('imgUrl') or 
+                        item.get('imageUrl') or 
+                        item.get('mediaUrl') or 
+                        ''
+                    )
+                    
+                    product_id = item.get('seq') or item.get('productSeq') or item.get('articleSeq') or item.get('id') or item.get('productId')
+                    title = item.get('title') or item.get('productTitle') or item.get('articleTitle') or item.get('name') or item.get('productName')
+                    
+                    if product_id and title:
                         results.append({
                             "id": f"joong-{product_id}",
                             "platform": "중고나라",
                             "platformColor": "bg-blue-600",
-                            "title": item.get('title') or item.get('productTitle') or item.get('articleTitle') or item.get('name'),
+                            "title": title,
                             "price": int(item.get('price', 0)),
                             "location": item.get('locationName') or item.get('location') or '전국',
                             "imageUrl": img_url,
