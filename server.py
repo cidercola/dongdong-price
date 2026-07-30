@@ -54,14 +54,14 @@ def search_products(keyword: str):
                         "price": int(item.get('price', 0)),
                         "location": item.get('location') or '전국',
                         "imageUrl": img_url,
-                        "createdAt": now_ts,  # 프론트엔드 필터 통과용
+                        "createdAt": now_ts,
                         "link": f"https://m.bunjang.co.kr/products/{item.get('pid')}"
                     })
         except Exception as e:
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집
+    # 2. 중고나라 수집 (이미지 추출 강화)
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
     
     for page in range(0, 3):
@@ -113,14 +113,27 @@ def search_products(keyword: str):
                     if not isinstance(item, dict):
                         continue
                     
-                    img_url = (
+                    # 모든 가능성 있는 이미지 필드 및 배열 탐색
+                    raw_img = (
                         item.get('detailImgUrl') or 
+                        item.get('url') or 
+                        item.get('imageUrl') or 
                         item.get('productImg') or 
                         item.get('imgUrl') or 
-                        item.get('imageUrl') or 
                         item.get('mediaUrl') or 
                         ''
                     )
+                    
+                    # 만약 media / images 배열 안에 담겨있는 경우
+                    if not raw_img and isinstance(item.get('media'), list) and len(item['media']) > 0:
+                        raw_img = item['media'][0].get('url') or item['media'][0].get('path') or ''
+                    elif not raw_img and isinstance(item.get('images'), list) and len(item['images']) > 0:
+                        raw_img = item['images'][0].get('url') or item['images'][0].get('path') or ''
+
+                    # 상대 경로 주소 형태일 경우 중고나라 CDN 도메인 붙여주기
+                    img_url = str(raw_img) if raw_img else ''
+                    if img_url and not img_url.startswith('http'):
+                        img_url = f"https://img2.joongna.com{img_url}" if img_url.startswith('/') else f"https://img2.joongna.com/{img_url}"
                     
                     product_id = item.get('seq') or item.get('productSeq') or item.get('articleSeq') or item.get('id') or item.get('productId')
                     title = item.get('title') or item.get('productTitle') or item.get('articleTitle') or item.get('name') or item.get('productName')
@@ -134,13 +147,12 @@ def search_products(keyword: str):
                             "price": int(item.get('price', 0)),
                             "location": item.get('locationName') or item.get('location') or '전국',
                             "imageUrl": img_url,
-                            "createdAt": now_ts,  # 프론트엔드 필터 통과용
+                            "createdAt": now_ts,
                             "link": f"https://web.joongna.com/product/{product_id}"
                         })
         except Exception as e:
             print("중고나라 수집 오류:", e)
             break
 
-    # 최신 순 정렬
     results.sort(key=lambda x: x['createdAt'], reverse=True)
     return results
