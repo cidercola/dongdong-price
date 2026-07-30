@@ -61,7 +61,7 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집 (v3/search/all POST 규격 반영)
+    # 2. 중고나라 수집 (실제 페이로드 구조 100% 반영)
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
     
     for page in range(0, 3):
@@ -69,14 +69,16 @@ def search_products(keyword: str):
             payload = {
                 "osType": 2,
                 "searchWord": keyword,
-                "sort": "RECENT_DATE",
+                "sort": "RECOMMEND_SORT",
                 "page": page,
-                "quantity": 30,
-                "firstQuantity": 30,
+                "quantity": 50,
+                "firstQuantity": 50,
                 "saleYn": "SALE_N",
-                "inPayYn": "ALL",
+                "jnPayYn": "ALL",
                 "parcelFeeYn": "ALL",
-                "realistPeriod": "ALL",
+                "registPeriod": "ALL",
+                "adjustSearchKeyword": True,
+                "keywordSource": "INPUT_KEYWORD",
                 "categoryFilter": [{"categoryDepth": 0, "categorySeq": 0}],
                 "priceFilter": {"minPrice": 0, "maxPrice": 100000000}
             }
@@ -85,14 +87,13 @@ def search_products(keyword: str):
 
             if res.status_code == 200:
                 data = res.json()
-                # 중고나라 v3 응답 구조에서 items 추출
+                # 중고나라 응답 객체 구조 추적
                 items = data.get('data', {}).get('items', []) or data.get('data', []) or data.get('items', [])
                 
                 if not items:
                     break
                 
                 for item in items:
-                    # 중고나라 내부 필드 추출 (seq / title / price / detailImgUrl 등)
                     reg_date = item.get('sortDate') or item.get('regDate') or item.get('articleRegDate') or 0
                     update_time = int(reg_date / 1000) if reg_date > 10000000000 else int(reg_date)
                     img_url = item.get('detailImgUrl') or item.get('productImg') or item.get('imgUrl') or item.get('imageUrl') or ''
