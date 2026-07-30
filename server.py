@@ -42,7 +42,6 @@ def search_products(keyword: str):
                     break
                 
                 for item in items:
-                    update_time = int(item.get('update_time', 0))
                     img_url = item.get('product_image') or ''
                     if img_url and not img_url.startswith('http'):
                         img_url = f"https://media.bunjang.co.kr/product/{item.get('pid')}_1.jpg"
@@ -55,14 +54,14 @@ def search_products(keyword: str):
                         "price": int(item.get('price', 0)),
                         "location": item.get('location') or '전국',
                         "imageUrl": img_url,
-                        "createdAt": now_ts,
+                        "createdAt": now_ts,  # 프론트엔드 필터 통과용
                         "link": f"https://m.bunjang.co.kr/products/{item.get('pid')}"
                     })
         except Exception as e:
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집 (curl_cffi로 Chrome 우회)
+    # 2. 중고나라 수집
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
     
     for page in range(0, 3):
@@ -84,7 +83,6 @@ def search_products(keyword: str):
                 "priceFilter": {"minPrice": 0, "maxPrice": 100000000}
             }
             
-            # impersonate="chrome120" 옵션으로 Chrome 브라우저 통신 지문 우회
             res = cffi_requests.post(
                 joonggo_url, 
                 headers=HEADERS, 
@@ -96,7 +94,6 @@ def search_products(keyword: str):
             if res.status_code == 200:
                 data = res.json()
                 
-                # 중고나라 응답 구조 파싱
                 inner_data = data.get('data', data)
                 items = []
                 if isinstance(inner_data, dict):
@@ -115,9 +112,6 @@ def search_products(keyword: str):
                 for item in items:
                     if not isinstance(item, dict):
                         continue
-                        
-                    reg_date = item.get('sortDate') or item.get('regDate') or item.get('articleRegDate') or item.get('registDate') or 0
-                    update_time = int(reg_date / 1000) if reg_date > 10000000000 else int(reg_date)
                     
                     img_url = (
                         item.get('detailImgUrl') or 
@@ -140,13 +134,13 @@ def search_products(keyword: str):
                             "price": int(item.get('price', 0)),
                             "location": item.get('locationName') or item.get('location') or '전국',
                             "imageUrl": img_url,
-                            "createdAt": update_time if update_time > 0 else now_ts,
+                            "createdAt": now_ts,  # 프론트엔드 필터 통과용
                             "link": f"https://web.joongna.com/product/{product_id}"
                         })
         except Exception as e:
             print("중고나라 수집 오류:", e)
             break
 
-    # 최신 등록순 정렬
+    # 최신 순 정렬
     results.sort(key=lambda x: x['createdAt'], reverse=True)
     return results
