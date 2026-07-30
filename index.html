@@ -20,7 +20,6 @@
     <div>
         <!-- 상단 네비게이션 바 -->
         <nav class="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
-            <!-- 1. 로고 클릭 시 홈으로 이동 -->
             <a href="/" class="flex items-center gap-3 group cursor-pointer">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition-transform">
                     <i class="fa-solid fa-bolt text-white text-xl"></i>
@@ -33,12 +32,12 @@
                 </div>
             </a>
             
-            <!-- 오른쪽 버전 및 최신 업데이트 내용 표시 영역 -->
+            <!-- 버전 표기 v1.4 -->
             <div class="text-xs bg-slate-900/80 border border-slate-800 text-slate-300 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
                 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span class="font-bold text-indigo-400">v1.3</span>
+                <span class="font-bold text-indigo-400">v1.4</span>
                 <span class="text-slate-500">|</span>
-                <span class="text-slate-400 font-medium">홈 이동 링크 & 등록 시간 계산 보정</span>
+                <span class="text-slate-400 font-medium">진짜 매물 등록시간 상대계산 보정</span>
             </div>
         </nav>
 
@@ -110,16 +109,14 @@
                         </div>
                     </div>
 
-                    <!-- 정렬 드롭다운 & 가격 필터 & 제외 키워드 추가 -->
+                    <!-- 정렬 / 가격 범위 / 제외 키워드 -->
                     <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-                        <!-- 정렬 -->
                         <select id="sortBy" onchange="renderItems()" class="bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none cursor-pointer">
                             <option value="recent">최신순</option>
                             <option value="price_asc">낮은 가격순</option>
                             <option value="price_desc">높은 가격순</option>
                         </select>
 
-                        <!-- 가격 범위 + 적용 버튼 -->
                         <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 text-xs">
                             <input type="number" id="minPrice" placeholder="최소가" class="w-16 bg-transparent text-center text-slate-200 focus:outline-none">
                             <span class="text-slate-600">~</span>
@@ -127,7 +124,6 @@
                             <button onclick="applyPriceFilter()" class="ml-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 px-2.5 py-1 rounded-lg transition-all font-semibold">적용</button>
                         </div>
 
-                        <!-- 제외 키워드 + 추가 버튼 -->
                         <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 text-xs">
                             <input type="text" id="excludeInput" placeholder="제외 키워드" class="w-24 bg-transparent pl-2 text-slate-200 focus:outline-none placeholder:text-slate-600">
                             <button onclick="addExcludeKeyword()" class="ml-1 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 px-2.5 py-1 rounded-lg transition-all font-semibold">추가</button>
@@ -184,16 +180,20 @@
             fetchData();
         }
 
-        // 2. 타임스탬프 기반 상대시간 계산 함수 추가
+        // 상대 시간 계산 강화 함수
         function getTimeAgo(timestamp) {
             if (!timestamp) return '방금 전';
             
-            // 밀리초 단위 보정
-            let ts = timestamp;
-            if (ts < 10000000000) ts = ts * 1000;
+            let ts = parseInt(timestamp);
+            if (isNaN(ts) || ts <= 0) return '방금 전';
 
-            const now = Date.now();
-            const diffSec = Math.floor((now - ts) / 1000);
+            // 밀리초(ms) 단위일 경우 초(s)로 보정
+            if (ts > 10000000000) {
+                ts = Math.floor(ts / 1000);
+            }
+
+            const now = Math.floor(Date.now() / 1000);
+            const diffSec = now - ts;
 
             if (diffSec < 60) return '방금 전';
             const diffMin = Math.floor(diffSec / 60);
@@ -329,7 +329,6 @@
             }
 
             filtered.forEach(item => {
-                // 실시간 등록 시간 계산
                 const timeAgoText = getTimeAgo(item.createdAt);
 
                 const card = `
