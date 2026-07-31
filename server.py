@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from curl_cffi import requests as cffi_requests
+from bs4 import BeautifulSoup
 import requests
 import urllib.parse
 import time
+import re
 
 app = FastAPI()
 
@@ -21,6 +23,12 @@ HEADERS = {
     'Content-Type': 'application/json',
     'Referer': 'https://web.joongna.com/',
     'Origin': 'https://web.joongna.com'
+}
+
+DAANGN_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
 }
 
 def is_exact_keyword_match(title: str, keyword: str) -> bool:
@@ -66,12 +74,13 @@ def search_products(keyword: str):
 
     bunjang_count = 0
     joongna_count = 0
+    daangn_count = 0
 
     # 1. 번개장터 수집
     for page in range(0, 4):
         try:
             bunjang_url = f"https://api.bunjang.co.kr/api/1/find_v2.json?q={encoded_keyword}&order=date&page={page}&n=30&stat_device=android"
-            res = requests.get(bunjang_url, headers=HEADERS, timeout=5)
+            res = requests.get(bunjang_url, headers=HEADERS, timeout=4)
             
             if res.status_code == 200:
                 data = res.json()
@@ -117,7 +126,6 @@ def search_products(keyword: str):
 
     # 2. 중고나라 수집
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
-    
     for page in range(0, 3):
         try:
             payload = {
@@ -142,7 +150,7 @@ def search_products(keyword: str):
                 headers=HEADERS, 
                 json=payload, 
                 impersonate="chrome120", 
-                timeout=10
+                timeout=5
             )
 
             if res.status_code == 200:
@@ -209,11 +217,67 @@ def search_products(keyword: str):
             print("중고나라 수집 오류:", e)
             break
 
+    # 3. 당근 수집 (의정부시 호원동 지역 한정 파싱)
+    try:
+        daangn_url = f"https://www.daangn.com/search/{encoded_keyword}/"
+        res_dg = cffi_requests.get(
+            daangn_url, 
+            headers=DAANGN_HEADERS, 
+            impersonate="chrome120", 
+            timeout=5
+        )
+        
+        if res_dg.status_code == 200:
+            soup = BeautifulSoup(res_dg.text, 'html.parser')
+            articles = soup.select('article.flea-market-article, a.flea-market-article-link')
+            
+            for idx, article in enumerate(articles[:30]):
+                try:
+                    title_elem = article.select_one('.article-title, .title')
+                    price_elem = article.select_one('.article-price, .price')
+                    region_elem = article.select_one('.article-region-name, .region-name')
+                    img_elem = article.select_one('img')
+                    link_elem = article if article.name == 'a' else article.select_one('a')
+                    
+                    title = title_elem.text.strip() if title_elem else ''
+                    if not title or not is_exact_keyword_match(title, keyword):
+                        continue
+                    
+                    price_str = price_elem.text.strip() if price_elem else '0'
+                    price_num = int(re.sub(r'[^0-9]', '', price_str) or 0)
+                    
+                    region_str = region_elem.text.strip() if region_elem else '의정부시 호원동'
+                    
+                    img_url = ''
+                    if img_elem:
+                        img_url = img_elem.get('src') or img_elem.get('data-src') or ''
+                        
+                    article_link = 'https://www.daangn.com' + link_elem.get('href') if link_elem and link_elem.get('href') else 'https://www.daangn.com'
+
+                    results.append({
+                        "id": f"daangn-{idx}-{now_ts}",
+                        "platform": "당근",
+                        "platformColor": "bg-amber-600",
+                        "title": title,
+                        "price": price_num,
+                        "location": region_str,
+                        "imageUrl": img_url,
+                        "createdAt": now_ts - (idx * 60),
+                        "timeAgo": "호원동 매물",
+                        "link": article_link
+                    })
+                    daangn_count += 1
+                except Exception as ex:
+                    continue
+    except Exception as e:
+        print("당근 수집 오류:", e)
+
     results.sort(key=lambda x: x['createdAt'], reverse=True)
     
     return {
         "totalCount": len(results),
         "bunjangCount": bunjang_count,
         "joongnaCount": joongna_count,
+        "daangnCount": daangn_count,
         "items": results
     }
