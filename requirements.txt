@@ -2,4 +2,4 @@ fastapi
 uvicorn
 requests
 curl_cffi
-# trigger build
+google-cloud-firestore
