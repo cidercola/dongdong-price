@@ -27,8 +27,16 @@ HEADERS = {
 
 DAANGN_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"Windows"',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1'
 }
 
 def is_exact_keyword_match(title: str, keyword: str) -> bool:
@@ -217,29 +225,34 @@ def search_products(keyword: str):
             print("중고나라 수집 오류:", e)
             break
 
-    # 3. 당근 수집 (의정부시 호원동 지역 한정 파싱)
+    # 3. 당근 수집 (보안 우회 헤더 적용)
     try:
         daangn_url = f"https://www.daangn.com/search/{encoded_keyword}/"
         res_dg = cffi_requests.get(
             daangn_url, 
             headers=DAANGN_HEADERS, 
             impersonate="chrome120", 
-            timeout=5
+            timeout=7
         )
         
         if res_dg.status_code == 200:
             soup = BeautifulSoup(res_dg.text, 'html.parser')
-            articles = soup.select('article.flea-market-article, a.flea-market-article-link')
-            
+            # 다중 구역 파싱 선택자
+            articles = soup.select('article.flea-market-article, a.flea-market-article-link, .flea-market-article-flat')
+            if not articles:
+                articles = soup.select('a[href*="/articles/"]')
+
             for idx, article in enumerate(articles[:30]):
                 try:
-                    title_elem = article.select_one('.article-title, .title')
-                    price_elem = article.select_one('.article-price, .price')
+                    title_elem = article.select_one('.article-title, .title, .article-title-flat')
+                    price_elem = article.select_one('.article-price, .price, .article-price-flat')
                     region_elem = article.select_one('.article-region-name, .region-name')
                     img_elem = article.select_one('img')
-                    link_elem = article if article.name == 'a' else article.select_one('a')
                     
                     title = title_elem.text.strip() if title_elem else ''
+                    if not title:
+                        title = article.get('title') or ''
+                        
                     if not title or not is_exact_keyword_match(title, keyword):
                         continue
                     
@@ -252,7 +265,11 @@ def search_products(keyword: str):
                     if img_elem:
                         img_url = img_elem.get('src') or img_elem.get('data-src') or ''
                         
-                    article_link = 'https://www.daangn.com' + link_elem.get('href') if link_elem and link_elem.get('href') else 'https://www.daangn.com'
+                    href = article.get('href') or ''
+                    if not href and article.select_one('a'):
+                        href = article.select_one('a').get('href') or ''
+                        
+                    article_link = 'https://www.daangn.com' + href if href.startswith('/') else href
 
                     results.append({
                         "id": f"daangn-{idx}-{now_ts}",
@@ -264,13 +281,15 @@ def search_products(keyword: str):
                         "imageUrl": img_url,
                         "createdAt": now_ts - (idx * 60),
                         "timeAgo": "호원동 매물",
-                        "link": article_link
+                        "link": article_link or "https://www.daangn.com"
                     })
                     daangn_count += 1
                 except Exception as ex:
                     continue
+        else:
+            print("당근마켓 응답 오류 코드:", res_dg.status_code)
     except Exception as e:
-        print("당근 수집 오류:", e)
+        print("당근 수집 실패 예외:", e)
 
     results.sort(key=lambda x: x['createdAt'], reverse=True)
     
