@@ -4,7 +4,6 @@ from curl_cffi import requests as cffi_requests
 import requests
 import urllib.parse
 import time
-import re
 
 app = FastAPI()
 
@@ -25,10 +24,6 @@ HEADERS = {
 }
 
 def is_exact_keyword_match(title: str, keyword: str) -> bool:
-    """
-    1) 's2046'처럼 s와 24 사이에 다른 숫자가 낀 이격 노이즈 제외
-    2) 's240', 'as24', 's24플러스'처럼 키워드가 붙어있으면 띄어쓰기 여부 상관없이 포함
-    """
     if not title or not keyword:
         return False
     clean_title = title.lower()
@@ -62,6 +57,10 @@ def calculate_time_ago(raw_time, now_ts):
         return "오래 전"
     except:
         return None
+
+@app.get("/")
+def health_check():
+    return {"status": "ok"}
 
 @app.get("/api/search")
 def search_products(keyword: str):
