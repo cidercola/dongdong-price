@@ -39,12 +39,12 @@
                 </div>
             </a>
             
-            <!-- 버전 표기 v2.5 -->
+            <!-- 버전 표기 v2.6 -->
             <div class="text-xs bg-slate-900/80 border border-slate-800 text-slate-300 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
                 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span class="font-bold text-indigo-400">v2.5</span>
+                <span class="font-bold text-indigo-400">v2.6</span>
                 <span class="text-slate-500">|</span>
-                <span class="text-slate-400 font-medium">당근 호원동 매물 수집 & 당근 뱃지/필터 지원</span>
+                <span class="text-slate-400 font-medium">초고속 엔진 & 당근 호원동 직통 연동</span>
             </div>
         </nav>
 
@@ -60,7 +60,7 @@
                     <span class="bg-gradient-to-r from-indigo-300 via-cyan-300 to-indigo-400 bg-clip-text text-transparent">한눈에 비교하고 탐색하세요</span>
                 </h2>
                 <p class="text-slate-400 text-sm max-w-xl mx-auto mb-8 font-light">
-                    번개장터, 중고나라, 당근(호원동 기준)에 올라온 최신 매물을 한곳에 모아 정렬해 드립니다.
+                    번개장터, 중고나라 실시간 매물 수집 및 당근마켓 호원동 직통 조회를 지원합니다.
                 </p>
 
                 <!-- 검색바 & 플랫폼 선택 -->
@@ -74,16 +74,12 @@
                     <!-- 플랫폼 체크박스 -->
                     <div class="flex items-center gap-3 px-3 py-2 text-xs font-medium text-slate-300 whitespace-nowrap border-t md:border-t-0 md:border-l border-slate-800/80 w-full md:w-auto justify-center">
                         <label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
-                            <input type="checkbox" id="checkBunjang" checked onchange="syncPlatformFromCheckbox()" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                            <input type="checkbox" id="checkBunjang" checked onchange="renderItems()" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
                             번개장터
                         </label>
                         <label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
-                            <input type="checkbox" id="checkJoongna" checked onchange="syncPlatformFromCheckbox()" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                            <input type="checkbox" id="checkJoongna" checked onchange="renderItems()" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
                             중고나라
-                        </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
-                            <input type="checkbox" id="checkDaangn" checked onchange="syncPlatformFromCheckbox()" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0 cursor-pointer">
-                            당근
                         </label>
                     </div>
 
@@ -136,28 +132,26 @@
             <!-- 필터 & 요약 바 -->
             <div id="filterBar" class="hidden flex-col gap-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 md:p-5 mb-8 backdrop-blur-md">
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                    <!-- 개수 요약 및 플랫폼별 뱃지 -->
+                    <!-- 개수 요약 및 플랫폼별 뱃지 + 당근 직통 버튼 -->
                     <div class="flex flex-wrap items-center gap-2">
                         <span id="resultKeyword" class="text-sm font-bold text-slate-300"></span>
                         <span id="badgeTotal" class="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20">총 0개</span>
                         <div class="flex items-center gap-1.5 border-l border-slate-800 pl-2">
                             <span id="badgeBunjang" class="text-[11px] font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-md">번개장터 0개</span>
                             <span id="badgeJoongna" class="text-[11px] font-semibold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md">중고나라 0개</span>
-                            <span id="badgeDaangn" class="text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md">당근 0개</span>
                         </div>
+
+                        <!-- 🥕 당근 호원동 직통 검색 버튼 -->
+                        <a id="daangnDirectBtn" href="https://www.daangn.com" target="_blank" 
+                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 text-xs font-bold transition-all shadow-sm">
+                            <i class="fa-solid fa-carrot text-amber-400"></i> 당근 호원동 매물 바로보기
+                            <i class="fa-solid fa-arrow-up-right-from-square text-[9px] opacity-70"></i>
+                        </a>
                     </div>
 
                     <!-- 컨트롤러 그룹 -->
                     <div class="flex flex-wrap items-center justify-between lg:justify-end gap-2 w-full lg:w-auto border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-800/80">
                         
-                        <!-- 플랫폼 선택 드롭다운 -->
-                        <select id="platformSelect" onchange="syncCheckboxFromSelect()" class="bg-slate-950 border border-indigo-500/30 text-xs text-indigo-300 font-medium rounded-xl px-3 py-2 focus:outline-none cursor-pointer hover:border-indigo-400 transition-colors">
-                            <option value="all">플랫폼 선택: 전체</option>
-                            <option value="bunjang">번개장터</option>
-                            <option value="joongna">중고나라</option>
-                            <option value="daangn">당근 (호원동)</option>
-                        </select>
-
                         <!-- 보기 모드 아이콘 버튼 그룹 -->
                         <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-1">
                             <button onclick="setViewMode('grid-2')" id="btnViewGrid2" title="2열 보기 (모바일 추천)" 
@@ -256,47 +250,6 @@
             fetchData();
         }
 
-        function syncCheckboxFromSelect() {
-            const val = document.getElementById('platformSelect').value;
-            const cbBunjang = document.getElementById('checkBunjang');
-            const cbJoongna = document.getElementById('checkJoongna');
-            const cbDaangn = document.getElementById('checkDaangn');
-
-            if (val === 'all') {
-                cbBunjang.checked = true;
-                cbJoongna.checked = true;
-                cbDaangn.checked = true;
-            } else if (val === 'bunjang') {
-                cbBunjang.checked = true;
-                cbJoongna.checked = false;
-                cbDaangn.checked = false;
-            } else if (val === 'joongna') {
-                cbBunjang.checked = false;
-                cbJoongna.checked = true;
-                cbDaangn.checked = false;
-            } else if (val === 'daangn') {
-                cbBunjang.checked = false;
-                cbJoongna.checked = false;
-                cbDaangn.checked = true;
-            }
-            renderItems();
-        }
-
-        function syncPlatformFromCheckbox() {
-            const cbBunjang = document.getElementById('checkBunjang').checked;
-            const cbJoongna = document.getElementById('checkJoongna').checked;
-            const cbDaangn = document.getElementById('checkDaangn').checked;
-            const sel = document.getElementById('platformSelect');
-
-            if (cbBunjang && cbJoongna && cbDaangn) sel.value = 'all';
-            else if (cbBunjang && !cbJoongna && !cbDaangn) sel.value = 'bunjang';
-            else if (!cbBunjang && cbJoongna && !cbDaangn) sel.value = 'joongna';
-            else if (!cbBunjang && !cbJoongna && cbDaangn) sel.value = 'daangn';
-            else sel.value = 'all';
-
-            renderItems();
-        }
-
         function setViewMode(mode) {
             currentViewMode = mode;
             document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
@@ -366,6 +319,10 @@
             const searchBtn = document.getElementById('searchBtn');
             searchBtn.innerText = '조회 중...';
             searchBtn.disabled = true;
+
+            // 당근 직통 검색 URL 업데이트
+            const daangnBtn = document.getElementById('daangnDirectBtn');
+            daangnBtn.href = `https://www.daangn.com/search/${encodeURIComponent(keyword)}/`;
 
             try {
                 const res = await fetch(`https://dongdong-price-139476624338.asia-northeast3.run.app/api/search?keyword=${encodeURIComponent(keyword)}`);
@@ -488,14 +445,12 @@
         function renderItems() {
             const checkBunjang = document.getElementById('checkBunjang').checked;
             const checkJoongna = document.getElementById('checkJoongna').checked;
-            const checkDaangn = document.getElementById('checkDaangn').checked;
             const sortBy = document.getElementById('sortBy').value;
             const pageSizeVal = document.getElementById('pageSize').value;
 
             let filtered = rawItems.filter(item => {
                 if (!checkBunjang && item.platform === '번개장터') return false;
                 if (!checkJoongna && item.platform === '중고나라') return false;
-                if (!checkDaangn && item.platform === '당근') return false;
                 if (item.price < appliedMinPrice || item.price > appliedMaxPrice) return false;
                 
                 for (let word of excludeKeywords) {
@@ -512,12 +467,10 @@
 
             const bunjangCount = filtered.filter(i => i.platform === '번개장터').length;
             const joongnaCount = filtered.filter(i => i.platform === '중고나라').length;
-            const daangnCount = filtered.filter(i => i.platform === '당근').length;
             
             document.getElementById('badgeTotal').innerText = `총 ${filtered.length}개`;
             document.getElementById('badgeBunjang').innerText = `번개장터 ${bunjangCount}개`;
             document.getElementById('badgeJoongna').innerText = `중고나라 ${joongnaCount}개`;
-            document.getElementById('badgeDaangn').innerText = `당근 ${daangnCount}개`;
 
             updatePriceSummary(filtered);
 
@@ -554,8 +507,6 @@
                             </div>
                         </div>
                     `;
-                } else if (item.platform === '당근') {
-                    timeDisplay = `<span class="text-amber-400 font-semibold text-[10px]"><i class="fa-solid fa-location-dot text-[8px] mr-1"></i>동네 매물</span>`;
                 } else {
                     timeDisplay = `<span><i class="fa-regular fa-clock text-[9px] mr-1"></i>${item.timeAgo || '방금 전'}</span>`;
                 }
