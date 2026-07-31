@@ -1,12 +1,16 @@
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+FROM python:3.10-slim
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Chromium 브라우저 바이너리 설치
-RUN playwright install chromium
 
 COPY . .
 
