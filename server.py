@@ -19,8 +19,8 @@ app.add_middleware(
 # ----------------------------------------------------
 # 🌟 텔레그램 설정 (본인 정보로 수정)
 # ----------------------------------------------------
-TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"  # 예: "7123456789:AAFg..."
-TELEGRAM_CHAT_ID = "YOUR_CHAT_ID_HERE"      # 예: "123456789"
+TELEGRAM_BOT_TOKEN = "8924745828:AAEuVPMKZK1Y4s_LNfGPWZPfqQkNCNYDN34"  # 예: "7123456789:AAFg..."
+TELEGRAM_CHAT_ID = "8909792233"      # 예: "123456789"
 
 # 감시 조건 등록
 WATCH_LIST = [
