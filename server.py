@@ -25,9 +25,24 @@ TELEGRAM_CHAT_ID = "8909792233"      # 예: "123456789"
 # 감시 조건 등록
 WATCH_LIST = [
     {
+        "keyword": "s23 플러스",
+        "min_price": 250000,
+        "max_price": 350000
+    },
+    {
+        "keyword": "s23",
+        "min_price": 150000,
+        "max_price": 250000
+    },
+    {
+        "keyword": "s24 플러스",
+        "min_price": 350000,
+        "max_price": 450000
+    },
+    {
         "keyword": "s24",
-        "min_price": 400000,
-        "max_price": 700000
+        "min_price": 250000,
+        "max_price": 350000
     }
 ]
 
