@@ -18,10 +18,10 @@ app.add_middleware(
 )
 
 # ----------------------------------------------------
-# 🌟 텔레그램 설정 (본인 정보로 수정)
+# 🌟 텔레그램 설정
 # ----------------------------------------------------
-TELEGRAM_BOT_TOKEN = "8924745828:AAEuVPMKZK1Y4s_LNfGPWZPfqQkNCNYDN34"  # 예: "7123456789:AAFg..."
-TELEGRAM_CHAT_ID = "8909792233"      # 예: "123456789"
+TELEGRAM_BOT_TOKEN = "8924745828:AAEuVPMKZK1Y4s_LNfGPWZPfqQkNCNYDN34"
+TELEGRAM_CHAT_ID = "8909792233"
 
 # 파일 영구 저장용 경로
 WATCHLIST_FILE = "watchlist.json"
@@ -41,13 +41,10 @@ HEADERS = {
 # 📂 감시 키워드 파일(JSON) 읽기 / 쓰기 함수
 # ----------------------------------------------------
 def load_watchlist():
-    """파일에서 감시 목록 불러오기 (없으면 기본값 생성)"""
+    """파일에서 감시 목록 불러오기 (없으면 빈 리스트)"""
     if not os.path.exists(WATCHLIST_FILE):
-        default_data = [
-            {"keyword": "s24", "min_price": 400000, "max_price": 700000}
-        ]
-        save_watchlist(default_data)
-        return default_data
+        save_watchlist([])
+        return []
     try:
         with open(WATCHLIST_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -128,10 +125,10 @@ def calculate_time_ago(raw_time, now_ts):
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "version": "v2.7-ui-watchlist"}
+    return {"status": "ok", "version": "v2.8-ui-edit-enabled"}
 
 # ----------------------------------------------------
-# 🌐 UI 연동 전용 Watchlist API (조회, 추가, 삭제)
+# 🌐 UI 연동 전용 Watchlist API (조회, 추가, 수정, 삭제)
 # ----------------------------------------------------
 @app.get("/api/watchlist")
 def get_watchlist_api():
@@ -149,10 +146,31 @@ def add_watchlist_api(item: dict):
         raise HTTPException(status_code=400, detail="키워드를 입력해 주세요.")
 
     data = load_watchlist()
-    # 기존에 동일한 키워드가 있다면 업데이트, 없으면 추가
     filtered_data = [d for d in data if d["keyword"].lower() != keyword.lower()]
     filtered_data.append({
         "keyword": keyword,
+        "min_price": min_price,
+        "max_price": max_price
+    })
+    
+    save_watchlist(filtered_data)
+    return {"status": "success", "watchlist": filtered_data}
+
+@app.put("/api/watchlist")
+def update_watchlist_api(item: dict):
+    """기존 감시 키워드 수정"""
+    old_keyword = item.get("old_keyword", "").strip()
+    new_keyword = item.get("keyword", "").strip()
+    min_price = int(item.get("min_price", 0))
+    max_price = int(item.get("max_price", 100000000))
+
+    if not old_keyword or not new_keyword:
+        raise HTTPException(status_code=400, detail="키워드 정보가 올바르지 않습니다.")
+
+    data = load_watchlist()
+    filtered_data = [d for d in data if d["keyword"].lower() != old_keyword.lower()]
+    filtered_data.append({
+        "keyword": new_keyword,
         "min_price": min_price,
         "max_price": max_price
     })
