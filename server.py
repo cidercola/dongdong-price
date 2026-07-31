@@ -4,6 +4,7 @@ from curl_cffi import requests as cffi_requests
 import requests
 import urllib.parse
 import time
+import re
 
 app = FastAPI()
 
@@ -22,6 +23,27 @@ HEADERS = {
     'Referer': 'https://web.joongna.com/',
     'Origin': 'https://web.joongna.com'
 }
+
+def is_exact_keyword_match(title: str, keyword: str) -> bool:
+    """
+    1) 's2046'처럼 s와 24 사이에 다른 숫자가 낀 경우만 제외
+    2) 's240', 'as24'처럼 s24 문자가 완전히 붙어있으면 포함
+    3) 's24 플러스' <-> 's24플러스' 띄어쓰기 유연 매칭 지원
+    """
+    if not title or not keyword:
+        return False
+    
+    clean_title = title.lower()
+    clean_keyword = keyword.lower().strip()
+    
+    # 1. 띄어쓰기 완전히 제거 후 키워드 완벽 포함 검사 (as24, s240, s24플러스 등 모두 허용)
+    nospace_title = clean_title.replace(" ", "")
+    nospace_keyword = clean_keyword.replace(" ", "")
+    
+    if nospace_keyword not in nospace_title:
+        return False
+
+    return True
 
 def calculate_time_ago(raw_time, now_ts):
     if not raw_time:
@@ -58,7 +80,7 @@ def search_products(keyword: str):
     bunjang_count = 0
     joongna_count = 0
 
-    # 1. 번개장터 수집 (실제 update_time 완벽 추출)
+    # 1. 번개장터 수집
     for page in range(0, 4):
         try:
             bunjang_url = f"https://api.bunjang.co.kr/api/1/find_v2.json?q={encoded_keyword}&order=date&page={page}&n=30&stat_device=android"
@@ -71,6 +93,12 @@ def search_products(keyword: str):
                     break
                 
                 for item in items:
+                    title = item.get('name') or ''
+                    
+                    # 💡 수정된 s24 연속성 검증 로직 적용
+                    if not is_exact_keyword_match(title, keyword):
+                        continue
+
                     img_url = item.get('product_image') or ''
                     if img_url and not img_url.startswith('http'):
                         img_url = f"https://media.bunjang.co.kr/product/{item.get('pid')}_1.jpg"
@@ -89,7 +117,7 @@ def search_products(keyword: str):
                         "id": f"bunk-{item.get('pid')}",
                         "platform": "번개장터",
                         "platformColor": "bg-red-500",
-                        "title": item.get('name'),
+                        "title": title,
                         "price": int(item.get('price', 0)),
                         "location": item.get('location') or '전국',
                         "imageUrl": img_url,
@@ -102,7 +130,7 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집 (시간 필드가 유실되어 오므로 '최신'으로 처리)
+    # 2. 중고나라 수집
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
     
     for page in range(0, 3):
@@ -153,6 +181,13 @@ def search_products(keyword: str):
                     if not isinstance(item, dict):
                         continue
                     
+                    product_id = item.get('seq') or item.get('productSeq') or item.get('articleSeq') or item.get('id') or item.get('productId')
+                    title = item.get('title') or item.get('productTitle') or item.get('articleTitle') or item.get('name') or item.get('productName') or ''
+                    
+                    # 💡 수정된 s24 연속성 검증 로직 적용
+                    if not is_exact_keyword_match(title, keyword):
+                        continue
+
                     raw_img = (
                         item.get('detailImgUrl') or 
                         item.get('url') or 
@@ -171,12 +206,6 @@ def search_products(keyword: str):
                     img_url = str(raw_img) if raw_img else ''
                     if img_url and not img_url.startswith('http'):
                         img_url = f"https://img2.joongna.com{img_url}" if img_url.startswith('/') else f"https://img2.joongna.com/{img_url}"
-                    
-                    product_id = item.get('seq') or item.get('productSeq') or item.get('articleSeq') or item.get('id') or item.get('productId')
-                    title = item.get('title') or item.get('productTitle') or item.get('articleTitle') or item.get('name') or item.get('productName')
-                    
-                    # 중고나라 목록 API에 정식 날짜 필드가 없는 점을 감안하여 '최신' 표기
-                    time_ago_str = "최신"
 
                     if product_id and title:
                         results.append({
@@ -188,7 +217,7 @@ def search_products(keyword: str):
                             "location": item.get('locationName') or item.get('location') or '전국',
                             "imageUrl": img_url,
                             "createdAt": now_ts,
-                            "timeAgo": time_ago_str,
+                            "timeAgo": "최신",
                             "link": f"https://web.joongna.com/product/{product_id}"
                         })
                         joongna_count += 1
