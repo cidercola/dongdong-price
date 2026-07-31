@@ -45,10 +45,10 @@
                     <i class="fa-paper-plane text-indigo-400 text-[11px]"></i> 텔레그램 알림 설정
                 </button>
 
-                <!-- 버전 표기 v2.7 -->
+                <!-- 버전 표기 v2.8 -->
                 <div class="hidden sm:flex text-xs bg-slate-900/80 border border-slate-800 text-slate-300 px-3.5 py-1.5 rounded-full items-center gap-2 shadow-sm">
                     <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                    <span class="font-bold text-indigo-400">v2.7</span>
+                    <span class="font-bold text-indigo-400">v2.8</span>
                 </div>
             </div>
         </nav>
@@ -236,10 +236,15 @@
                 </button>
             </div>
 
-            <!-- 새 키워드 등록 입력 폼 -->
+            <!-- 새 키워드 등록 / 수정 입력 폼 -->
             <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-6">
-                <div class="text-xs font-semibold text-slate-300 mb-3 flex items-center gap-1.5">
-                    <i class="fa-plus text-indigo-400"></i> 새 감시 조건 추가
+                <div class="flex justify-between items-center mb-3">
+                    <div id="formTitle" class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-plus text-indigo-400"></i> 새 감시 조건 추가
+                    </div>
+                    <button id="cancelEditBtn" onclick="cancelEditMode()" class="hidden text-[11px] text-amber-400 hover:underline">
+                        수정 취소
+                    </button>
                 </div>
                 <div class="flex flex-col gap-2 text-xs">
                     <input type="text" id="watchKeyword" placeholder="감시 키워드 (예: s24)" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
@@ -248,7 +253,7 @@
                         <span class="text-slate-600">~</span>
                         <input type="number" id="watchMaxPrice" placeholder="최대 가격 (원)" class="w-1/2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500">
                     </div>
-                    <button onclick="addWatchItem()" class="mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl transition-all shadow-md">
+                    <button id="submitWatchBtn" onclick="addWatchItem()" class="mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl transition-all shadow-md">
                         알림 조건 등록하기
                     </button>
                 </div>
@@ -293,6 +298,9 @@
         let appliedMaxPrice = Infinity;
         let myChartInstance = null;
         let currentViewMode = 'grid-2';
+
+        // 수정 모드 관리 상태
+        let editingOldKeyword = null;
 
         document.getElementById('keywordInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') fetchData();
@@ -354,6 +362,7 @@
         /* ---------------------------------------------------- */
         function openWatchlistModal() {
             document.getElementById('watchlistModal').classList.remove('hidden');
+            cancelEditMode();
             fetchWatchlist();
         }
 
@@ -379,15 +388,23 @@
                     const minStr = item.min_price ? `${item.min_price.toLocaleString()}원` : '0원';
                     const maxStr = item.max_price && item.max_price < 100000000 ? `${item.max_price.toLocaleString()}원` : '제한없음';
                     
+                    // JSON 인코딩 세이프 처리
+                    const safeKeyword = encodeURIComponent(item.keyword);
+
                     const row = `
                         <div class="flex items-center justify-between bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-xs">
                             <div>
                                 <div class="font-bold text-indigo-300"># ${item.keyword}</div>
                                 <div class="text-[10px] text-slate-500 mt-0.5">${minStr} ~ ${maxStr}</div>
                             </div>
-                            <button onclick="deleteWatchItem('${item.keyword}')" class="text-slate-500 hover:text-red-400 transition-colors p-1">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
+                            <div class="flex items-center gap-1">
+                                <button onclick="startEditItem('${safeKeyword}', ${item.min_price || 0}, ${item.max_price || 100000000})" class="text-slate-500 hover:text-indigo-400 transition-colors p-1.5" title="수정">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button onclick="deleteWatchItem('${safeKeyword}')" class="text-slate-500 hover:text-red-400 transition-colors p-1.5" title="삭제">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
                         </div>
                     `;
                     container.innerHTML += row;
@@ -395,6 +412,32 @@
             } catch (err) {
                 container.innerHTML = `<div class="text-center py-6 text-red-400 text-xs">목록을 불러오지 못했습니다.</div>`;
             }
+        }
+
+        function startEditItem(encodedKw, minPrice, maxPrice) {
+            const kw = decodeURIComponent(encodedKw);
+            editingOldKeyword = kw;
+
+            document.getElementById('watchKeyword').value = kw;
+            document.getElementById('watchMinPrice').value = minPrice > 0 ? minPrice : '';
+            document.getElementById('watchMaxPrice').value = maxPrice < 100000000 ? maxPrice : '';
+
+            document.getElementById('formTitle').innerHTML = `<i class="fa-pen text-indigo-400"></i> 감시 조건 수정 중`;
+            document.getElementById('submitWatchBtn').innerText = '알림 조건 수정 완료';
+            document.getElementById('submitWatchBtn').className = 'mt-2 bg-indigo-500 hover:bg-indigo-400 text-white font-bold py-2 rounded-xl transition-all shadow-md';
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+        }
+
+        function cancelEditMode() {
+            editingOldKeyword = null;
+            document.getElementById('watchKeyword').value = '';
+            document.getElementById('watchMinPrice').value = '';
+            document.getElementById('watchMaxPrice').value = '';
+
+            document.getElementById('formTitle').innerHTML = `<i class="fa-plus text-indigo-400"></i> 새 감시 조건 추가`;
+            document.getElementById('submitWatchBtn').innerText = '알림 조건 등록하기';
+            document.getElementById('submitWatchBtn').className = 'mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl transition-all shadow-md';
+            document.getElementById('cancelEditBtn').classList.add('hidden');
         }
 
         async function addWatchItem() {
@@ -414,34 +457,44 @@
                 max_price: maxInput.value ? parseInt(maxInput.value) : 100000000
             };
 
+            const isEditMode = editingOldKeyword !== null;
+            const endpoint = `${API_BASE_URL}/api/watchlist`;
+            const method = isEditMode ? 'PUT' : 'POST';
+
+            if (isEditMode) {
+                payload.old_keyword = editingOldKeyword;
+            }
+
             try {
-                const res = await fetch(`${API_BASE_URL}/api/watchlist`, {
-                    method: 'POST',
+                const res = await fetch(endpoint, {
+                    method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 
                 if (res.ok) {
-                    kwInput.value = '';
-                    minInput.value = '';
-                    maxInput.value = '';
+                    cancelEditMode();
                     fetchWatchlist();
                 } else {
-                    alert('등록 실패');
+                    alert(isEditMode ? '수정 실패' : '등록 실패');
                 }
             } catch (err) {
                 alert('서버통신 오류');
             }
         }
 
-        async function deleteWatchItem(keyword) {
-            if (!confirm(`'${keyword}' 감시 조건을 삭제하시겠습니까?`)) return;
+        async function deleteWatchItem(encodedKw) {
+            const kw = decodeURIComponent(encodedKw);
+            if (!confirm(`'${kw}' 감시 조건을 삭제하시겠습니까?`)) return;
 
             try {
-                const res = await fetch(`${API_BASE_URL}/api/watchlist/${encodeURIComponent(keyword)}`, {
+                const res = await fetch(`${API_BASE_URL}/api/watchlist/${encodeURIComponent(kw)}`, {
                     method: 'DELETE'
                 });
                 if (res.ok) {
+                    if (editingOldKeyword === kw) {
+                        cancelEditMode();
+                    }
                     fetchWatchlist();
                 }
             } catch (err) {
