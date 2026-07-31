@@ -4,8 +4,10 @@ from curl_cffi import requests as cffi_requests
 import requests
 import urllib.parse
 import time
-import json
 import os
+
+# 🌟 구글 클라우드 Firestore 라이브러리
+from google.cloud import firestore
 
 app = FastAPI()
 
@@ -23,8 +25,11 @@ app.add_middleware(
 TELEGRAM_BOT_TOKEN = "8924745828:AAEuVPMKZK1Y4s_LNfGPWZPfqQkNCNYDN34"
 TELEGRAM_CHAT_ID = "8909792233"
 
-# 파일 영구 저장용 경로
-WATCHLIST_FILE = "watchlist.json"
+# ----------------------------------------------------
+# 📂 Firestore DB 클라이언트 초기화
+# ----------------------------------------------------
+db = firestore.Client()
+WATCHLIST_COLLECTION = "watchlist"  # Firestore에 생성될 컬렉션(테이블) 이름
 
 # 중복 알림 방지용 메모리 저장소
 SENT_ITEM_IDS = set()
@@ -38,23 +43,35 @@ HEADERS = {
 }
 
 # ----------------------------------------------------
-# 📂 감시 키워드 파일(JSON) 읽기 / 쓰기 함수
+# 📂 Firestore DB 읽기 / 쓰기 / 삭제 함수
 # ----------------------------------------------------
 def load_watchlist():
-    """파일에서 감시 목록 불러오기 (없으면 빈 리스트)"""
-    if not os.path.exists(WATCHLIST_FILE):
-        save_watchlist([])
-        return []
+    """Firestore에서 감시 목록 가져오기"""
     try:
-        with open(WATCHLIST_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
+        docs = db.collection(WATCHLIST_COLLECTION).stream()
+        results = []
+        for doc in docs:
+            item = doc.to_dict()
+            results.append(item)
+        return results
+    except Exception as e:
+        print("Firestore 읽기 오류:", e)
         return []
 
-def save_watchlist(data):
-    """파일에 감시 목록 영구 저장하기"""
-    with open(WATCHLIST_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def save_watchlist_item(keyword, min_price, max_price):
+    """Firestore에 감시 항목 추가/업데이트"""
+    doc_ref = db.collection(WATCHLIST_COLLECTION).document(keyword.lower().strip())
+    doc_ref.set({
+        "keyword": keyword,
+        "min_price": min_price,
+        "max_price": max_price,
+        "updated_at": firestore.SERVER_TIMESTAMP
+    })
+
+def delete_watchlist_item(keyword):
+    """Firestore에서 감시 항목 삭제"""
+    doc_ref = db.collection(WATCHLIST_COLLECTION).document(keyword.lower().strip())
+    doc_ref.delete()
 
 def send_telegram_msg(title, price, platform, link, img_url):
     """텔레그램 메시지 발송 함수"""
@@ -125,10 +142,10 @@ def calculate_time_ago(raw_time, now_ts):
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "version": "v2.8-ui-edit-enabled"}
+    return {"status": "ok", "version": "v2.9-firestore"}
 
 # ----------------------------------------------------
-# 🌐 UI 연동 전용 Watchlist API (조회, 추가, 수정, 삭제)
+# 🌐 UI 연동 전용 Watchlist API (Firestore 연동)
 # ----------------------------------------------------
 @app.get("/api/watchlist")
 def get_watchlist_api():
@@ -145,16 +162,8 @@ def add_watchlist_api(item: dict):
     if not keyword:
         raise HTTPException(status_code=400, detail="키워드를 입력해 주세요.")
 
-    data = load_watchlist()
-    filtered_data = [d for d in data if d["keyword"].lower() != keyword.lower()]
-    filtered_data.append({
-        "keyword": keyword,
-        "min_price": min_price,
-        "max_price": max_price
-    })
-    
-    save_watchlist(filtered_data)
-    return {"status": "success", "watchlist": filtered_data}
+    save_watchlist_item(keyword, min_price, max_price)
+    return {"status": "success", "watchlist": load_watchlist()}
 
 @app.put("/api/watchlist")
 def update_watchlist_api(item: dict):
@@ -167,24 +176,18 @@ def update_watchlist_api(item: dict):
     if not old_keyword or not new_keyword:
         raise HTTPException(status_code=400, detail="키워드 정보가 올바르지 않습니다.")
 
-    data = load_watchlist()
-    filtered_data = [d for d in data if d["keyword"].lower() != old_keyword.lower()]
-    filtered_data.append({
-        "keyword": new_keyword,
-        "min_price": min_price,
-        "max_price": max_price
-    })
-    
-    save_watchlist(filtered_data)
-    return {"status": "success", "watchlist": filtered_data}
+    # 옛 키워드와 새 키워드가 다르면 기존 문서 삭제 후 추가
+    if old_keyword.lower() != new_keyword.lower():
+        delete_watchlist_item(old_keyword)
+
+    save_watchlist_item(new_keyword, min_price, max_price)
+    return {"status": "success", "watchlist": load_watchlist()}
 
 @app.delete("/api/watchlist/{keyword}")
 def delete_watchlist_api(keyword: str):
     """감시 키워드 삭제"""
-    data = load_watchlist()
-    filtered_data = [d for d in data if d["keyword"].lower() != keyword.lower()]
-    save_watchlist(filtered_data)
-    return {"status": "success", "watchlist": filtered_data}
+    delete_watchlist_item(keyword)
+    return {"status": "success", "watchlist": load_watchlist()}
 
 # ----------------------------------------------------
 # 🔍 검색 API & 3분 주기 Cron API
@@ -350,7 +353,7 @@ def search_products(keyword: str):
 
 @app.get("/api/cron-check")
 def cron_check_and_notify():
-    """스케줄러가 3분마다 호출하여 파일에 저장된 키워드들을 감시"""
+    """스케줄러가 3분마다 호출하여 Firestore DB에 저장된 키워드들을 감시"""
     watchlist = load_watchlist()
     new_alerts_count = 0
 
