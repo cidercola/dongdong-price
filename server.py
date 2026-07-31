@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from curl_cffi import requests as cffi_requests
 import requests
 import urllib.parse
 import time
-import re
+import json
+import os
 
 app = FastAPI()
 
@@ -22,29 +23,8 @@ app.add_middleware(
 TELEGRAM_BOT_TOKEN = "8924745828:AAEuVPMKZK1Y4s_LNfGPWZPfqQkNCNYDN34"  # 예: "7123456789:AAFg..."
 TELEGRAM_CHAT_ID = "8909792233"      # 예: "123456789"
 
-# 감시 조건 등록
-WATCH_LIST = [
-    {
-        "keyword": "s23 플러스",
-        "min_price": 250000,
-        "max_price": 350000
-    },
-    {
-        "keyword": "s23",
-        "min_price": 150000,
-        "max_price": 250000
-    },
-    {
-        "keyword": "s24 플러스",
-        "min_price": 350000,
-        "max_price": 450000
-    },
-    {
-        "keyword": "s24",
-        "min_price": 250000,
-        "max_price": 350000
-    }
-]
+# 파일 영구 저장용 경로
+WATCHLIST_FILE = "watchlist.json"
 
 # 중복 알림 방지용 메모리 저장소
 SENT_ITEM_IDS = set()
@@ -56,6 +36,28 @@ HEADERS = {
     'Referer': 'https://web.joongna.com/',
     'Origin': 'https://web.joongna.com'
 }
+
+# ----------------------------------------------------
+# 📂 감시 키워드 파일(JSON) 읽기 / 쓰기 함수
+# ----------------------------------------------------
+def load_watchlist():
+    """파일에서 감시 목록 불러오기 (없으면 기본값 생성)"""
+    if not os.path.exists(WATCHLIST_FILE):
+        default_data = [
+            {"keyword": "s24", "min_price": 400000, "max_price": 700000}
+        ]
+        save_watchlist(default_data)
+        return default_data
+    try:
+        with open(WATCHLIST_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return []
+
+def save_watchlist(data):
+    """파일에 감시 목록 영구 저장하기"""
+    with open(WATCHLIST_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 def send_telegram_msg(title, price, platform, link, img_url):
     """텔레그램 메시지 발송 함수"""
@@ -90,10 +92,6 @@ def send_telegram_msg(title, price, platform, link, img_url):
     requests.post(text_url, data=payload, timeout=5)
 
 def is_exact_keyword_match(title: str, keyword: str) -> bool:
-    """
-    1) 's2046'처럼 s와 24 사이에 다른 숫자가 낀 이격 노이즈 제외
-    2) 's240', 'as24', 's24플러스'처럼 키워드가 붙어있으면 띄어쓰기 여부 상관없이 포함
-    """
     if not title or not keyword:
         return False
     clean_title = title.lower()
@@ -130,9 +128,49 @@ def calculate_time_ago(raw_time, now_ts):
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "version": "v2.6-cron"}
+    return {"status": "ok", "version": "v2.7-ui-watchlist"}
 
-# 1. 기존 웹사이트 검색용 API
+# ----------------------------------------------------
+# 🌐 UI 연동 전용 Watchlist API (조회, 추가, 삭제)
+# ----------------------------------------------------
+@app.get("/api/watchlist")
+def get_watchlist_api():
+    """현재 등록된 감시 목록 조회"""
+    return load_watchlist()
+
+@app.post("/api/watchlist")
+def add_watchlist_api(item: dict):
+    """새로운 감시 키워드 추가"""
+    keyword = item.get("keyword", "").strip()
+    min_price = int(item.get("min_price", 0))
+    max_price = int(item.get("max_price", 100000000))
+
+    if not keyword:
+        raise HTTPException(status_code=400, detail="키워드를 입력해 주세요.")
+
+    data = load_watchlist()
+    # 기존에 동일한 키워드가 있다면 업데이트, 없으면 추가
+    filtered_data = [d for d in data if d["keyword"].lower() != keyword.lower()]
+    filtered_data.append({
+        "keyword": keyword,
+        "min_price": min_price,
+        "max_price": max_price
+    })
+    
+    save_watchlist(filtered_data)
+    return {"status": "success", "watchlist": filtered_data}
+
+@app.delete("/api/watchlist/{keyword}")
+def delete_watchlist_api(keyword: str):
+    """감시 키워드 삭제"""
+    data = load_watchlist()
+    filtered_data = [d for d in data if d["keyword"].lower() != keyword.lower()]
+    save_watchlist(filtered_data)
+    return {"status": "success", "watchlist": filtered_data}
+
+# ----------------------------------------------------
+# 🔍 검색 API & 3분 주기 Cron API
+# ----------------------------------------------------
 @app.get("/api/search")
 def search_products(keyword: str):
     results = []
@@ -142,7 +180,7 @@ def search_products(keyword: str):
     bunjang_count = 0
     joongna_count = 0
 
-    # 번개장터 수집 (4페이지)
+    # 1. 번개장터 수집
     for page in range(0, 4):
         try:
             bunjang_url = f"https://api.bunjang.co.kr/api/1/find_v2.json?q={encoded_keyword}&order=date&page={page}&n=30&stat_device=android"
@@ -190,7 +228,7 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 중고나라 수집 (3페이지)
+    # 2. 중고나라 수집
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
     for page in range(0, 3):
         try:
@@ -292,15 +330,19 @@ def search_products(keyword: str):
         "items": results
     }
 
-# 2. 구글 스케줄러(Cloud Scheduler) 전용 크론 엔드포인트
 @app.get("/api/cron-check")
 def cron_check_and_notify():
+    """스케줄러가 3분마다 호출하여 파일에 저장된 키워드들을 감시"""
+    watchlist = load_watchlist()
     new_alerts_count = 0
 
-    for target in WATCH_LIST:
-        keyword = target["keyword"]
-        min_p = target["min_price"]
-        max_p = target["max_price"]
+    for target in watchlist:
+        keyword = target.get("keyword")
+        min_p = target.get("min_price", 0)
+        max_p = target.get("max_price", 100000000)
+
+        if not keyword:
+            continue
 
         search_res = search_products(keyword)
         items = search_res.get("items", [])
