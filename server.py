@@ -16,6 +16,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ----------------------------------------------------
+# 🌟 텔레그램 설정 (본인 정보로 수정)
+# ----------------------------------------------------
+TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"  # 예: "7123456789:AAFg..."
+TELEGRAM_CHAT_ID = "YOUR_CHAT_ID_HERE"      # 예: "123456789"
+
+# 감시 조건 등록
+WATCH_LIST = [
+    {
+        "keyword": "s24",
+        "min_price": 400000,
+        "max_price": 700000
+    }
+]
+
+# 중복 알림 방지용 메모리 저장소
+SENT_ITEM_IDS = set()
+
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Accept': 'application/json, text/plain, */*',
@@ -23,6 +41,38 @@ HEADERS = {
     'Referer': 'https://web.joongna.com/',
     'Origin': 'https://web.joongna.com'
 }
+
+def send_telegram_msg(title, price, platform, link, img_url):
+    """텔레그램 메시지 발송 함수"""
+    if TELEGRAM_BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
+        return
+
+    msg = f"🚨 <b>[{platform}] 신규 매물 포착!</b>\n\n"
+    msg += f"📦 <b>상품명:</b> {title}\n"
+    msg += f"💰 <b>가격:</b> {price:,}원\n"
+    msg += f"🔗 <a href='{link}'>매물 바로가기</a>"
+
+    if img_url:
+        photo_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+        payload = {
+            "chat_id": TELEGRAM_CHAT_ID,
+            "photo": img_url,
+            "caption": msg,
+            "parse_mode": "HTML"
+        }
+        try:
+            requests.post(photo_url, data=payload, timeout=5)
+            return
+        except:
+            pass
+
+    text_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": msg,
+        "parse_mode": "HTML"
+    }
+    requests.post(text_url, data=payload, timeout=5)
 
 def is_exact_keyword_match(title: str, keyword: str) -> bool:
     """
@@ -63,6 +113,11 @@ def calculate_time_ago(raw_time, now_ts):
     except:
         return None
 
+@app.get("/")
+def health_check():
+    return {"status": "ok", "version": "v2.6-cron"}
+
+# 1. 기존 웹사이트 검색용 API
 @app.get("/api/search")
 def search_products(keyword: str):
     results = []
@@ -72,7 +127,7 @@ def search_products(keyword: str):
     bunjang_count = 0
     joongna_count = 0
 
-    # 1. 번개장터 수집
+    # 번개장터 수집 (4페이지)
     for page in range(0, 4):
         try:
             bunjang_url = f"https://api.bunjang.co.kr/api/1/find_v2.json?q={encoded_keyword}&order=date&page={page}&n=30&stat_device=android"
@@ -120,7 +175,7 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집
+    # 중고나라 수집 (3페이지)
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
     for page in range(0, 3):
         try:
@@ -221,3 +276,33 @@ def search_products(keyword: str):
         "joongnaCount": joongna_count,
         "items": results
     }
+
+# 2. 구글 스케줄러(Cloud Scheduler) 전용 크론 엔드포인트
+@app.get("/api/cron-check")
+def cron_check_and_notify():
+    new_alerts_count = 0
+
+    for target in WATCH_LIST:
+        keyword = target["keyword"]
+        min_p = target["min_price"]
+        max_p = target["max_price"]
+
+        search_res = search_products(keyword)
+        items = search_res.get("items", [])
+
+        for item in items:
+            item_id = item["id"]
+            price = item["price"]
+
+            if min_p <= price <= max_p and item_id not in SENT_ITEM_IDS:
+                send_telegram_msg(
+                    title=item["title"],
+                    price=price,
+                    platform=item["platform"],
+                    link=item["link"],
+                    img_url=item["imageUrl"]
+                )
+                SENT_ITEM_IDS.add(item_id)
+                new_alerts_count += 1
+
+    return {"status": "ok", "newAlertsSent": new_alerts_count}
