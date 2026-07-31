@@ -425,10 +425,13 @@ def search_products(keyword: str):
 
 @app.get("/api/cron-check")
 def cron_check_and_notify():
-    """스케줄러 3분 주기 감시 함수"""
+    """스케줄러 3분 주기 감시 함수 (최근 12시간 이내 매물만 알림)"""
     watchlist = load_watchlist()
     blocked_list = [u.get("user_id", "").lower() for u in load_blocked_users()]
     new_alerts_count = 0
+    
+    now_ts = int(time.time())
+    twelve_hours_ago = now_ts - (12 * 60 * 60)  # 현재 기준 12시간 전 타임스탬프
 
     for target in watchlist:
         keyword = target.get("keyword")
@@ -444,13 +447,19 @@ def cron_check_and_notify():
         for item in items:
             item_id = item["id"]
             price = item["price"]
+            created_at = item.get("createdAt", now_ts)
             seller_id = item.get("sellerId", "").lower()
             seller_name = item.get("sellerName", "").lower()
 
-            # 차단된 판매자 걸러내기
+            # 1. 차단된 판매자 걸러내기
             if seller_id in blocked_list or seller_name in blocked_list:
                 continue
 
+            # 2. 12시간이 지난 오래된 게시글은 알림 제외
+            if created_at < twelve_hours_ago:
+                continue
+
+            # 3. 가격 조건 및 중복 알림 방지 체크 후 발송
             if min_p <= price <= max_p and item_id not in SENT_ITEM_IDS:
                 send_telegram_msg(
                     title=item["title"],
