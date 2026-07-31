@@ -3,3 +3,4 @@ uvicorn
 requests
 curl_cffi
 beautifulsoup4
+playwright
