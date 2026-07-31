@@ -4,7 +4,6 @@ from curl_cffi import requests as cffi_requests
 import requests
 import urllib.parse
 import time
-import re
 
 app = FastAPI()
 
@@ -25,25 +24,13 @@ HEADERS = {
 }
 
 def is_exact_keyword_match(title: str, keyword: str) -> bool:
-    """
-    1) 's2046'처럼 s와 24 사이에 다른 숫자가 낀 경우만 제외
-    2) 's240', 'as24'처럼 s24 문자가 완전히 붙어있으면 포함
-    3) 's24 플러스' <-> 's24플러스' 띄어쓰기 유연 매칭 지원
-    """
     if not title or not keyword:
         return False
-    
     clean_title = title.lower()
     clean_keyword = keyword.lower().strip()
-    
-    # 1. 띄어쓰기 완전히 제거 후 키워드 완벽 포함 검사 (as24, s240, s24플러스 등 모두 허용)
     nospace_title = clean_title.replace(" ", "")
     nospace_keyword = clean_keyword.replace(" ", "")
-    
-    if nospace_keyword not in nospace_title:
-        return False
-
-    return True
+    return nospace_keyword in nospace_title
 
 def calculate_time_ago(raw_time, now_ts):
     if not raw_time:
@@ -94,8 +81,6 @@ def search_products(keyword: str):
                 
                 for item in items:
                     title = item.get('name') or ''
-                    
-                    # 💡 수정된 s24 연속성 검증 로직 적용
                     if not is_exact_keyword_match(title, keyword):
                         continue
 
@@ -184,7 +169,6 @@ def search_products(keyword: str):
                     product_id = item.get('seq') or item.get('productSeq') or item.get('articleSeq') or item.get('id') or item.get('productId')
                     title = item.get('title') or item.get('productTitle') or item.get('articleTitle') or item.get('name') or item.get('productName') or ''
                     
-                    # 💡 수정된 s24 연속성 검증 로직 적용
                     if not is_exact_keyword_match(title, keyword):
                         continue
 
