@@ -29,11 +29,11 @@ TELEGRAM_CHAT_ID = "8909792233"
 # 📂 Firestore DB 클라이언트 초기화
 # ----------------------------------------------------
 db = firestore.Client()
-WATCHLIST_COLLECTION = "watchlist"       # 감시 키워드 컬렉션
-BLOCKED_USERS_COLLECTION = "blocked_users" # 차단 판매자 컬렉션
+WATCHLIST_COLLECTION = "watchlist"
+BLOCKED_USERS_COLLECTION = "blocked_users"
 
-# 중복 알림 방지용 메모리 저장소
-SENT_ITEM_IDS = set()
+# 중복 알림 방지 및 서버 최초 발견 시간 메모리 (아이템ID: 발견된 타임스탬프)
+SEEN_ITEMS = {}
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
@@ -43,24 +43,15 @@ HEADERS = {
     'Origin': 'https://web.joongna.com'
 }
 
-# ----------------------------------------------------
-# 📂 Firestore DB 읽기 / 쓰기 / 삭제 함수 (감시 목록)
-# ----------------------------------------------------
 def load_watchlist():
-    """Firestore에서 감시 목록 가져오기"""
     try:
         docs = db.collection(WATCHLIST_COLLECTION).stream()
-        results = []
-        for doc in docs:
-            item = doc.to_dict()
-            results.append(item)
-        return results
+        return [doc.to_dict() for doc in docs]
     except Exception as e:
         print("Firestore 읽기 오류 (watchlist):", e)
         return []
 
 def save_watchlist_item(keyword, min_price, max_price):
-    """Firestore에 감시 항목 추가/업데이트"""
     doc_ref = db.collection(WATCHLIST_COLLECTION).document(keyword.lower().strip())
     doc_ref.set({
         "keyword": keyword,
@@ -70,28 +61,18 @@ def save_watchlist_item(keyword, min_price, max_price):
     })
 
 def delete_watchlist_item(keyword):
-    """Firestore에서 감시 항목 삭제"""
     doc_ref = db.collection(WATCHLIST_COLLECTION).document(keyword.lower().strip())
     doc_ref.delete()
 
-# ----------------------------------------------------
-# 🚫 Firestore DB 차단 판매자 관리 함수
-# ----------------------------------------------------
 def load_blocked_users():
-    """Firestore에서 차단된 업자/판매자 목록 가져오기"""
     try:
         docs = db.collection(BLOCKED_USERS_COLLECTION).stream()
-        results = []
-        for doc in docs:
-            item = doc.to_dict()
-            results.append(item)
-        return results
+        return [doc.to_dict() for doc in docs]
     except Exception as e:
         print("Firestore 읽기 오류 (blocked_users):", e)
         return []
 
 def save_blocked_user(user_id):
-    """Firestore에 차단 판매자 추가"""
     clean_id = user_id.strip()
     doc_ref = db.collection(BLOCKED_USERS_COLLECTION).document(clean_id.lower())
     doc_ref.set({
@@ -100,13 +81,11 @@ def save_blocked_user(user_id):
     })
 
 def delete_blocked_user(user_id):
-    """Firestore에서 차단 판매자 삭제"""
     clean_id = user_id.strip()
     doc_ref = db.collection(BLOCKED_USERS_COLLECTION).document(clean_id.lower())
     doc_ref.delete()
 
 def send_telegram_msg(title, price, platform, link, img_url, seller_name=""):
-    """텔레그램 메시지 발송 함수 (판매자 정보 포함)"""
     if TELEGRAM_BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
         return
 
@@ -176,11 +155,8 @@ def calculate_time_ago(raw_time, now_ts):
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "version": "v3.0-blocked-users-added"}
+    return {"status": "ok", "version": "v3.1-strict-time-filter"}
 
-# ----------------------------------------------------
-# 🌐 UI 연동 Watchlist API (조회, 추가, 수정, 삭제)
-# ----------------------------------------------------
 @app.get("/api/watchlist")
 def get_watchlist_api():
     return load_watchlist()
@@ -190,10 +166,8 @@ def add_watchlist_api(item: dict):
     keyword = item.get("keyword", "").strip()
     min_price = int(item.get("min_price", 0))
     max_price = int(item.get("max_price", 100000000))
-
     if not keyword:
         raise HTTPException(status_code=400, detail="키워드를 입력해 주세요.")
-
     save_watchlist_item(keyword, min_price, max_price)
     return {"status": "success", "watchlist": load_watchlist()}
 
@@ -203,13 +177,10 @@ def update_watchlist_api(item: dict):
     new_keyword = item.get("keyword", "").strip()
     min_price = int(item.get("min_price", 0))
     max_price = int(item.get("max_price", 100000000))
-
     if not old_keyword or not new_keyword:
         raise HTTPException(status_code=400, detail="키워드 정보가 올바르지 않습니다.")
-
     if old_keyword.lower() != new_keyword.lower():
         delete_watchlist_item(old_keyword)
-
     save_watchlist_item(new_keyword, min_price, max_price)
     return {"status": "success", "watchlist": load_watchlist()}
 
@@ -218,9 +189,6 @@ def delete_watchlist_api(keyword: str):
     delete_watchlist_item(keyword)
     return {"status": "success", "watchlist": load_watchlist()}
 
-# ----------------------------------------------------
-# 🚫 UI 연동 차단 판매자 API (조회, 추가, 삭제)
-# ----------------------------------------------------
 @app.get("/api/blocked-users")
 def get_blocked_users_api():
     return load_blocked_users()
@@ -238,16 +206,11 @@ def delete_blocked_user_api(user_id: str):
     delete_blocked_user(user_id)
     return {"status": "success", "blocked_users": load_blocked_users()}
 
-# ----------------------------------------------------
-# 🔍 검색 API & 3분 주기 Cron API
-# ----------------------------------------------------
 @app.get("/api/search")
 def search_products(keyword: str):
     results = []
     encoded_keyword = urllib.parse.quote(keyword)
     now_ts = int(time.time())
-
-    # 차단 목록 불러오기
     blocked_list = [u.get("user_id", "").lower() for u in load_blocked_users()]
 
     bunjang_count = 0
@@ -258,23 +221,18 @@ def search_products(keyword: str):
         try:
             bunjang_url = f"https://api.bunjang.co.kr/api/1/find_v2.json?q={encoded_keyword}&order=date&page={page}&n=30&stat_device=android"
             res = requests.get(bunjang_url, headers=HEADERS, timeout=5)
-            
             if res.status_code == 200:
                 data = res.json()
                 items = data.get('list', [])
                 if not items:
                     break
-                
                 for item in items:
                     title = item.get('name') or ''
                     if not is_exact_keyword_match(title, keyword):
                         continue
 
-                    # 판매자 정보 추출
                     seller_id = str(item.get('uid') or '')
                     seller_name = str(item.get('user_name') or item.get('nick') or '')
-                    
-                    # 업자 차단 필터링
                     if seller_id.lower() in blocked_list or seller_name.lower() in blocked_list:
                         continue
 
@@ -331,60 +289,32 @@ def search_products(keyword: str):
                 "categoryFilter": [{"categoryDepth": 0, "categorySeq": 0}],
                 "priceFilter": {"minPrice": 0, "maxPrice": 100000000}
             }
-            
-            res = cffi_requests.post(
-                joonggo_url, 
-                headers=HEADERS, 
-                json=payload, 
-                impersonate="chrome120", 
-                timeout=10
-            )
-
+            res = cffi_requests.post(joonggo_url, headers=HEADERS, json=payload, impersonate="chrome120", timeout=10)
             if res.status_code == 200:
                 data = res.json()
                 inner_data = data.get('data', data)
                 items = []
                 if isinstance(inner_data, dict):
-                    items = (
-                        inner_data.get('items') or 
-                        inner_data.get('list') or 
-                        inner_data.get('goodsList') or 
-                        []
-                    )
+                    items = inner_data.get('items') or inner_data.get('list') or inner_data.get('goodsList') or []
                 elif isinstance(inner_data, list):
                     items = inner_data
 
                 if not items:
                     break
-                
                 for item in items:
                     if not isinstance(item, dict):
                         continue
-                    
                     product_id = item.get('seq') or item.get('productSeq') or item.get('articleSeq') or item.get('id') or item.get('productId')
                     title = item.get('title') or item.get('productTitle') or item.get('articleTitle') or item.get('name') or item.get('productName') or ''
-                    
                     if not is_exact_keyword_match(title, keyword):
                         continue
 
-                    # 판매자 정보 추출
                     seller_id = str(item.get('storeSeq') or item.get('userSeq') or item.get('id') or '')
                     seller_name = str(item.get('nickName') or item.get('storeName') or item.get('userName') or '')
-
-                    # 업자 차단 필터링
                     if seller_id.lower() in blocked_list or seller_name.lower() in blocked_list:
                         continue
 
-                    raw_img = (
-                        item.get('detailImgUrl') or 
-                        item.get('url') or 
-                        item.get('imageUrl') or 
-                        item.get('productImg') or 
-                        item.get('imgUrl') or 
-                        item.get('mediaUrl') or 
-                        ''
-                    )
-                    
+                    raw_img = item.get('detailImgUrl') or item.get('url') or item.get('imageUrl') or item.get('productImg') or item.get('imgUrl') or item.get('mediaUrl') or ''
                     if not raw_img and isinstance(item.get('media'), list) and len(item['media']) > 0:
                         raw_img = item['media'][0].get('url') or item['media'][0].get('path') or ''
                     elif not raw_img and isinstance(item.get('images'), list) and len(item['images']) > 0:
@@ -415,7 +345,6 @@ def search_products(keyword: str):
             break
 
     results.sort(key=lambda x: x['createdAt'], reverse=True)
-    
     return {
         "totalCount": len(results),
         "bunjangCount": bunjang_count,
@@ -425,13 +354,12 @@ def search_products(keyword: str):
 
 @app.get("/api/cron-check")
 def cron_check_and_notify():
-    """스케줄러 3분 주기 감시 함수 (최근 12시간 이내 매물만 알림)"""
+    """스케줄러 3분 주기 감시 함수 (서버가 처음 발견한 시점 기준 필터링)"""
     watchlist = load_watchlist()
     blocked_list = [u.get("user_id", "").lower() for u in load_blocked_users()]
     new_alerts_count = 0
     
     now_ts = int(time.time())
-    twelve_hours_ago = now_ts - (12 * 60 * 60)  # 현재 기준 12시간 전 타임스탬프
 
     for target in watchlist:
         keyword = target.get("keyword")
@@ -447,20 +375,23 @@ def cron_check_and_notify():
         for item in items:
             item_id = item["id"]
             price = item["price"]
-            created_at = item.get("createdAt", now_ts)
             seller_id = item.get("sellerId", "").lower()
             seller_name = item.get("sellerName", "").lower()
 
-            # 1. 차단된 판매자 걸러내기
+            # 1. 차단 판매자 필터링
             if seller_id in blocked_list or seller_name in blocked_list:
                 continue
 
-            # 2. 12시간이 지난 오래된 게시글은 알림 제외
-            if created_at < twelve_hours_ago:
+            # 2. 가격 조건 체크
+            if not (min_p <= price <= max_p):
                 continue
 
-            # 3. 가격 조건 및 중복 알림 방지 체크 후 발송
-            if min_p <= price <= max_p and item_id not in SENT_ITEM_IDS:
+            # 3. 최초 발견 시간 기록 및 신규 매물 판별
+            if item_id not in SEEN_ITEMS:
+                # 서버가 이 글을 처음 본 시점을 기록
+                SEEN_ITEMS[item_id] = now_ts
+                
+                # 방금 막 수집된 따끈따끈한 글이므로 알림 발송
                 send_telegram_msg(
                     title=item["title"],
                     price=price,
@@ -469,7 +400,6 @@ def cron_check_and_notify():
                     img_url=item["imageUrl"],
                     seller_name=item.get("sellerName", "")
                 )
-                SENT_ITEM_IDS.add(item_id)
                 new_alerts_count += 1
 
     return {"status": "ok", "newAlertsSent": new_alerts_count}
