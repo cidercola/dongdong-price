@@ -4,6 +4,7 @@ from curl_cffi import requests as cffi_requests
 import requests
 import urllib.parse
 import time
+import re
 
 app = FastAPI()
 
@@ -24,6 +25,10 @@ HEADERS = {
 }
 
 def is_exact_keyword_match(title: str, keyword: str) -> bool:
+    """
+    1) 's2046'처럼 s와 24 사이에 다른 숫자가 낀 이격 노이즈 제외
+    2) 's240', 'as24', 's24플러스'처럼 키워드가 붙어있으면 띄어쓰기 여부 상관없이 포함
+    """
     if not title or not keyword:
         return False
     clean_title = title.lower()
@@ -58,10 +63,6 @@ def calculate_time_ago(raw_time, now_ts):
     except:
         return None
 
-@app.get("/")
-def health_check():
-    return {"status": "ok", "version": "v2.6-fast"}
-
 @app.get("/api/search")
 def search_products(keyword: str):
     results = []
@@ -71,11 +72,11 @@ def search_products(keyword: str):
     bunjang_count = 0
     joongna_count = 0
 
-    # 1. 번개장터 수집 (2페이지/60개로 단축하여 속도 대폭 향상)
-    for page in range(0, 2):
+    # 1. 번개장터 수집
+    for page in range(0, 4):
         try:
             bunjang_url = f"https://api.bunjang.co.kr/api/1/find_v2.json?q={encoded_keyword}&order=date&page={page}&n=30&stat_device=android"
-            res = requests.get(bunjang_url, headers=HEADERS, timeout=2.5)
+            res = requests.get(bunjang_url, headers=HEADERS, timeout=5)
             
             if res.status_code == 200:
                 data = res.json()
@@ -119,9 +120,9 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집 (타임아웃 3초로 단축)
+    # 2. 중고나라 수집
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
-    for page in range(0, 1):  # 최신 50개 1페이지 단으로 초고속 반환
+    for page in range(0, 3):
         try:
             payload = {
                 "osType": 2,
@@ -145,7 +146,7 @@ def search_products(keyword: str):
                 headers=HEADERS, 
                 json=payload, 
                 impersonate="chrome120", 
-                timeout=3.0
+                timeout=10
             )
 
             if res.status_code == 200:
