@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>동동 시세 검색 - REALTIME SECONDHAND MARKET RADAR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js 그래프 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #080c14; color: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; }
+        .hero-card {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(13, 17, 30, 0.95) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        .view-btn.active {
+            background-color: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <div>
+        <!-- 상단 네비게이션 바 -->
+        <nav class="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
+            <a href="/" class="flex items-center gap-3 group cursor-pointer">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition-transform">
+                    <i class="fa-solid fa-bolt text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black tracking-tight text-white flex items-center gap-2 group-hover:text-indigo-300 transition-colors">
+                        동동 시세 검색 <span class="w-2 h-2 rounded-full bg-cyan-400 inline-block animate-pulse"></span>
+                    </h1>
+                    <p class="text-[11px] font-semibold tracking-wider text-slate-500">REALTIME SECONDHAND MARKET RADAR</p>
+                </div>
+            </a>
+            
+            <!-- 버전 표기 v2.4 -->
+            <div class="text-xs bg-slate-900/80 border border-slate-800 text-slate-300 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span class="font-bold text-indigo-400">v2.4</span>
+                <span class="text-slate-500">|</span>
+                <span class="text-slate-400 font-medium">플랫폼 선택 드롭다운 이식 & 렉 제로 연동</span>
+            </div>
+        </nav>
+
+        <!-- 메인 히어로 검색 섹션 -->
+        <section class="max-w-5xl mx-auto px-4 mt-2">
+            <div class="hero-card rounded-3xl p-8 md:p-12 text-center relative overflow-hidden">
+                <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold mb-6">
+                    <i class="fa-solid fa-chart-line text-[10px]"></i> 스마트 실시간 시세 탐색기
+                </div>
+                
+                <h2 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight mb-3">
+                    실시간 최신 중고 매물을<br>
+                    <span class="bg-gradient-to-r from-indigo-300 via-cyan-300 to-indigo-400 bg-clip-text text-transparent">한눈에 비교하고 탐색하세요</span>
+                </h2>
+                <p class="text-slate-400 text-sm max-w-xl mx-auto mb-8 font-light">
+                    번개장터와 중고나라에 방금 올라온 최신 매물을 수집하여 플랫폼별로 깔끔하게 정렬해 드립니다.
+                </p>
+
+                <!-- 검색바 & 플랫폼 선택 -->
+                <div class="bg-slate-950/80 border border-slate-800 p-2 rounded-2xl max-w-2xl mx-auto shadow-2xl flex flex-col md:flex-row items-center gap-2">
+                    <div class="flex items-center pl-4 pr-2 py-2 w-full">
+                        <i class="fa-solid fa-magnifying-glass text-slate-500 mr-3"></i>
+                        <input type="text" id="keywordInput" placeholder="검색어를 입력하세요 (예: s24)" 
+                            class="w-full bg-transparent text-white text-sm focus:outline-none placeholder:text-slate-600">
+                    </div>
+
+                    <!-- 히어로 상단 플랫폼 체크박스 -->
+                    <div class="flex items-center gap-4 px-3 py-2 text-xs font-medium text-slate-300 whitespace-nowrap border-t md:border-t-0 md:border-l border-slate-800/80 w-full md:w-auto justify-center">
+                        <label class="flex items-center gap-2 cursor-pointer hover:text-white transition-colors">
+                            <input type="checkbox" id="checkBunjang" checked onchange="syncPlatformFromCheckbox()" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                            번개장터
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer hover:text-white transition-colors">
+                            <input type="checkbox" id="checkJoongna" checked onchange="syncPlatformFromCheckbox()" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                            중고나라
+                        </label>
+                    </div>
+
+                    <button onclick="fetchData()" id="searchBtn" 
+                        class="w-full md:w-auto bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold px-7 py-3 rounded-xl text-sm transition-all shadow-lg shadow-indigo-600/30 whitespace-nowrap">
+                        시세 조회
+                    </button>
+                </div>
+
+                <!-- 인기 키워드 태그 -->
+                <div class="mt-6 flex flex-wrap justify-center items-center gap-2 text-xs text-slate-500">
+                    <span class="mr-1">인기 키워드:</span>
+                    <button onclick="setKeyword('s24')" class="hover:text-slate-300 font-medium">#s24</button>
+                    <button onclick="setKeyword('아이폰 15')" class="hover:text-slate-300 font-medium">#아이폰 15</button>
+                    <button onclick="setKeyword('아이패드')" class="hover:text-slate-300 font-medium">#아이패드</button>
+                    <button onclick="setKeyword('닌텐도')" class="hover:text-slate-300 font-medium">#닌텐도</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 검색 결과 영역 -->
+        <main class="max-w-7xl mx-auto px-4 md:px-6 mt-12 mb-20">
+            
+            <!-- 검색 상품 가격 요약 & 시세 분포 그래프 패널 -->
+            <div id="priceSummaryPanel" class="hidden flex-col gap-6 bg-slate-900/80 border border-slate-800 rounded-3xl p-6 mb-8 shadow-2xl backdrop-blur-md">
+                <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-magnifying-glass-chart text-indigo-400"></i> 검색 상품 시세 요약 분석
+                    </h3>
+                    <span class="text-xs text-slate-500">실시간 데이터 기반 자동 연산</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                    <div class="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-6 text-center flex flex-col justify-center items-center h-full shadow-inner">
+                        <div class="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-calculator text-indigo-400"></i> 최근 적정 평균 시세
+                        </div>
+                        <div id="summaryAvgPrice" class="text-3xl font-black text-white tracking-tight my-1">0원</div>
+                        <div class="text-[11px] text-indigo-300/80 mt-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full">
+                            이상치(액세서리/오류가) 제외 평균
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-2 bg-slate-950/50 border border-slate-800/50 rounded-2xl p-4 h-48 flex items-center justify-center">
+                        <canvas id="priceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 필터 & 요약 바 -->
+            <div id="filterBar" class="hidden flex-col gap-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 md:p-5 mb-8 backdrop-blur-md">
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                    <!-- 개수 요약 -->
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        <span id="resultKeyword" class="text-sm font-bold text-slate-300"></span>
+                        <span id="badgeTotal" class="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">총 0개</span>
+                        <div class="flex items-center gap-2 border-l border-slate-800 pl-2.5">
+                            <span id="badgeBunjang" class="text-[11px] font-semibold text-red-400 bg-red-500/10 px-2 py-0.5 rounded-md">번개장터 0개</span>
+                            <span id="badgeJoongna" class="text-[11px] font-semibold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md">중고나라 0개</span>
+                        </div>
+                    </div>
+
+                    <!-- 컨트롤러 그룹 -->
+                    <div class="flex flex-wrap items-center justify-between lg:justify-end gap-2 w-full lg:w-auto border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-800/80">
+                        
+                        <!-- 💡 추가: 플랫폼 선택 드롭다운 -->
+                        <select id="platformSelect" onchange="syncCheckboxFromSelect()" class="bg-slate-950 border border-indigo-500/30 text-xs text-indigo-300 font-medium rounded-xl px-3 py-2 focus:outline-none cursor-pointer hover:border-indigo-400 transition-colors">
+                            <option value="all">플랫폼 선택: 전체</option>
+                            <option value="bunjang">번개장터</option>
+                            <option value="joongna">중고나라</option>
+                        </select>
+
+                        <!-- 보기 모드 아이콘 버튼 그룹 -->
+                        <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-1">
+                            <button onclick="setViewMode('grid-2')" id="btnViewGrid2" title="2열 보기 (모바일 추천)" 
+                                class="view-btn active px-2.5 py-1.5 rounded-lg border border-transparent text-slate-400 hover:text-white transition-all text-xs flex items-center gap-1">
+                                <i class="fa-solid fa-border-all"></i>
+                            </button>
+                            <button onclick="setViewMode('grid-1')" id="btnViewGrid1" title="1열 큼직하게 보기" 
+                                class="view-btn px-2.5 py-1.5 rounded-lg border border-transparent text-slate-400 hover:text-white transition-all text-xs flex items-center gap-1">
+                                <i class="fa-solid fa-square"></i>
+                            </button>
+                            <button onclick="setViewMode('list')" id="btnViewList" title="리스트 보기" 
+                                class="view-btn px-2.5 py-1.5 rounded-lg border border-transparent text-slate-400 hover:text-white transition-all text-xs flex items-center gap-1">
+                                <i class="fa-solid fa-list-ul"></i>
+                            </button>
+                        </div>
+
+                        <!-- 개수 제한 선택 드롭다운 -->
+                        <select id="pageSize" onchange="renderItems()" class="bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none cursor-pointer">
+                            <option value="20">20개씩 보기</option>
+                            <option value="40" selected>40개씩 보기</option>
+                            <option value="80">80개씩 보기</option>
+                            <option value="all">전체 보기</option>
+                        </select>
+
+                        <!-- 정렬 드롭다운 -->
+                        <select id="sortBy" onchange="renderItems()" class="bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none cursor-pointer">
+                            <option value="recent">최신순</option>
+                            <option value="price_asc">낮은 가격순</option>
+                            <option value="price_desc">높은 가격순</option>
+                        </select>
+
+                        <!-- 가격 범위 필터 -->
+                        <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 text-xs">
+                            <input type="number" id="minPrice" placeholder="최소가" class="w-14 bg-transparent text-center text-slate-200 focus:outline-none">
+                            <span class="text-slate-600">~</span>
+                            <input type="number" id="maxPrice" placeholder="최대가" class="w-14 bg-transparent text-center text-slate-200 focus:outline-none">
+                            <button onclick="applyPriceFilter()" class="ml-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 px-2.5 py-1 rounded-lg transition-all font-semibold">적용</button>
+                        </div>
+
+                        <!-- 제외 키워드 -->
+                        <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 text-xs">
+                            <input type="text" id="excludeInput" placeholder="제외 단어" class="w-20 bg-transparent pl-2 text-slate-200 focus:outline-none placeholder:text-slate-600">
+                            <button onclick="addExcludeKeyword()" class="ml-1 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 px-2 py-1 rounded-lg transition-all font-semibold">추가</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 제외 키워드 태그 리스트 영역 -->
+                <div id="excludeTagContainer" class="hidden flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60">
+                    <span class="text-xs text-slate-500 font-medium mr-1"><i class="fa-solid fa-filter text-[10px] mr-1"></i>제외된 단어:</span>
+                    <div id="excludeTagList" class="flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+
+            <!-- 매물 카드 그리드 -->
+            <div id="itemList" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5"></div>
+        </main>
+    </div>
+
+    <!-- 하단 푸터 -->
+    <footer class="border-t border-slate-800/80 bg-slate-950/60 py-8 px-6 text-center text-xs text-slate-500 mt-auto">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-2 font-semibold text-slate-400">
+                <i class="fa-solid fa-bolt text-indigo-500"></i> 동동 시세 검색
+            </div>
+            <div class="flex items-center gap-4">
+                <span>문의 및 서비스 피드백:</span>
+                <a href="mailto:contact@dongdong.com" class="text-indigo-400 hover:underline flex items-center gap-1.5 font-medium">
+                    <i class="fa-regular fa-envelope"></i> contact@dongdong.com
+                </a>
+            </div>
+            <div class="text-slate-600 text-[11px]">
+                © 2026 DongDong Price Radar. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        let rawItems = [];
+        let excludeKeywords = [];
+        let appliedMinPrice = 0;
+        let appliedMaxPrice = Infinity;
+        let myChartInstance = null;
+        let currentViewMode = 'grid-2';
+
+        document.getElementById('keywordInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') fetchData();
+        });
+
+        document.getElementById('excludeInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') addExcludeKeyword();
+        });
+
+        function setKeyword(val) {
+            document.getElementById('keywordInput').value = val;
+            fetchData();
+        }
+
+        // 플랫폼 선택 드롭다운 -> 히어로 영역 체크박스 동기화
+        function syncCheckboxFromSelect() {
+            const val = document.getElementById('platformSelect').value;
+            const cbBunjang = document.getElementById('checkBunjang');
+            const cbJoongna = document.getElementById('checkJoongna');
+
+            if (val === 'all') {
+                cbBunjang.checked = true;
+                cbJoongna.checked = true;
+            } else if (val === 'bunjang') {
+                cbBunjang.checked = true;
+                cbJoongna.checked = false;
+            } else if (val === 'joongna') {
+                cbBunjang.checked = false;
+                cbJoongna.checked = true;
+            }
+            renderItems();
+        }
+
+        // 히어로 영역 체크박스 -> 플랫폼 선택 드롭다운 동기화
+        function syncPlatformFromCheckbox() {
+            const cbBunjang = document.getElementById('checkBunjang').checked;
+            const cbJoongna = document.getElementById('checkJoongna').checked;
+            const sel = document.getElementById('platformSelect');
+
+            if (cbBunjang && cbJoongna) sel.value = 'all';
+            else if (cbBunjang && !cbJoongna) sel.value = 'bunjang';
+            else if (!cbBunjang && cbJoongna) sel.value = 'joongna';
+            else sel.value = 'all';
+
+            renderItems();
+        }
+
+        function setViewMode(mode) {
+            currentViewMode = mode;
+            document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+            if (mode === 'grid-2') document.getElementById('btnViewGrid2').classList.add('active');
+            if (mode === 'grid-1') document.getElementById('btnViewGrid1').classList.add('active');
+            if (mode === 'list') document.getElementById('btnViewList').classList.add('active');
+
+            renderItems();
+        }
+
+        function applyPriceFilter() {
+            const minVal = parseInt(document.getElementById('minPrice').value);
+            const maxVal = parseInt(document.getElementById('maxPrice').value);
+            appliedMinPrice = isNaN(minVal) ? 0 : minVal;
+            appliedMaxPrice = isNaN(maxVal) ? Infinity : maxVal;
+            renderItems();
+        }
+
+        function addExcludeKeyword() {
+            const input = document.getElementById('excludeInput');
+            const val = input.value.trim();
+            if (val && !excludeKeywords.includes(val)) {
+                excludeKeywords.push(val);
+                input.value = '';
+                renderExcludeTags();
+                renderItems();
+            }
+        }
+
+        function removeExcludeKeyword(word) {
+            excludeKeywords = excludeKeywords.filter(k => k !== word);
+            renderExcludeTags();
+            renderItems();
+        }
+
+        function renderExcludeTags() {
+            const container = document.getElementById('excludeTagContainer');
+            const list = document.getElementById('excludeTagList');
+            list.innerHTML = '';
+
+            if (excludeKeywords.length === 0) {
+                container.classList.add('hidden');
+                container.classList.remove('flex');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            container.classList.add('flex');
+
+            excludeKeywords.forEach(word => {
+                const tag = `
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-xs font-medium">
+                        ${word}
+                        <button onclick="removeExcludeKeyword('${word}')" class="hover:text-red-100 transition-colors">
+                            <i class="fa-solid fa-xmark text-[11px]"></i>
+                        </button>
+                    </span>
+                `;
+                list.innerHTML += tag;
+            });
+        }
+
+        async function fetchData() {
+            const keyword = document.getElementById('keywordInput').value.trim();
+            if (!keyword) return;
+
+            const searchBtn = document.getElementById('searchBtn');
+            searchBtn.innerText = '조회 중...';
+            searchBtn.disabled = true;
+
+            try {
+                const res = await fetch(`https://dongdong-price-139476624338.asia-northeast3.run.app/api/search?keyword=${encodeURIComponent(keyword)}`);
+                const data = await res.json();
+
+                if (data && data.items) {
+                    rawItems = data.items;
+                } else if (Array.isArray(data)) {
+                    rawItems = data;
+                }
+
+                document.getElementById('resultKeyword').innerText = `'${keyword}' 조회 결과`;
+                document.getElementById('filterBar').classList.remove('hidden');
+                document.getElementById('filterBar').classList.add('flex');
+
+                document.getElementById('priceSummaryPanel').classList.remove('hidden');
+                document.getElementById('priceSummaryPanel').classList.add('flex');
+
+                renderItems();
+
+            } catch (err) {
+                alert('데이터 수집 중 오류가 발생했습니다.');
+                console.error(err);
+            } finally {
+                searchBtn.innerText = '시세 조회';
+                searchBtn.disabled = false;
+            }
+        }
+
+        function updatePriceSummary(items) {
+            if (!items || items.length === 0) {
+                document.getElementById('summaryAvgPrice').innerText = '0원';
+                if (myChartInstance) myChartInstance.destroy();
+                return;
+            }
+
+            let prices = items.map(i => i.price).filter(p => p > 0).sort((a, b) => a - b);
+            
+            if (prices.length === 0) {
+                document.getElementById('summaryAvgPrice').innerText = '0원';
+                if (myChartInstance) myChartInstance.destroy();
+                return;
+            }
+
+            const cutCount = Math.floor(prices.length * 0.1);
+            let validPrices = prices;
+            if (prices.length > 5 && cutCount > 0) {
+                validPrices = prices.slice(cutCount, prices.length - cutCount);
+            }
+
+            const sum = validPrices.reduce((acc, cur) => acc + cur, 0);
+            const avg = Math.round(sum / validPrices.length);
+
+            document.getElementById('summaryAvgPrice').innerText = `${avg.toLocaleString()}원`;
+
+            const minP = validPrices[0];
+            const maxP = validPrices[validPrices.length - 1];
+            const step = Math.ceil((maxP - minP) / 5) || 10000;
+
+            const labels = [];
+            const counts = [0, 0, 0, 0, 0];
+
+            for (let i = 0; i < 5; i++) {
+                const start = minP + (step * i);
+                const end = start + step;
+                labels.push(`${Math.round(start/10000)}만~${Math.round(end/10000)}만원`);
+            }
+
+            validPrices.forEach(p => {
+                let idx = Math.floor((p - minP) / step);
+                if (idx >= 5) idx = 4;
+                counts[idx]++;
+            });
+
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            if (myChartInstance) {
+                myChartInstance.destroy();
+            }
+
+            myChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '매물 수',
+                        data: counts,
+                        backgroundColor: 'rgba(99, 102, 241, 0.5)',
+                        borderColor: '#818cf8',
+                        borderWidth: 1.5,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` 매물 ${context.raw}개`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#94a3b8', font: { size: 10 } },
+                            grid: { display: false }
+                        },
+                        y: {
+                            ticks: { color: '#94a3b8', font: { size: 10 }, stepSize: 1 },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderItems() {
+            const checkBunjang = document.getElementById('checkBunjang').checked;
+            const checkJoongna = document.getElementById('checkJoongna').checked;
+            const sortBy = document.getElementById('sortBy').value;
+            const pageSizeVal = document.getElementById('pageSize').value;
+
+            // 1. 선택 필터링 적용
+            let filtered = rawItems.filter(item => {
+                if (!checkBunjang && item.platform === '번개장터') return false;
+                if (!checkJoongna && item.platform === '중고나라') return false;
+                if (item.price < appliedMinPrice || item.price > appliedMaxPrice) return false;
+                
+                for (let word of excludeKeywords) {
+                    if (item.title.includes(word)) return false;
+                }
+                return true;
+            });
+
+            // 2. 정렬
+            filtered.sort((a, b) => {
+                if (sortBy === 'price_asc') return a.price - b.price;
+                if (sortBy === 'price_desc') return b.price - a.price;
+                return b.createdAt - a.createdAt;
+            });
+
+            // 3. 개수 뱃지 및 차트/평균가 업데이트
+            const bunjangCount = filtered.filter(i => i.platform === '번개장터').length;
+            const joongnaCount = filtered.filter(i => i.platform === '중고나라').length;
+            
+            document.getElementById('badgeTotal').innerText = `총 ${filtered.length}개`;
+            document.getElementById('badgeBunjang').innerText = `번개장터 ${bunjangCount}개`;
+            document.getElementById('badgeJoongna').innerText = `중고나라 ${joongnaCount}개`;
+
+            updatePriceSummary(filtered);
+
+            // 4. 페이지 출력 제한
+            let displayItems = filtered;
+            if (pageSizeVal !== 'all') {
+                const limit = parseInt(pageSizeVal);
+                displayItems = filtered.slice(0, limit);
+            }
+
+            const itemList = document.getElementById('itemList');
+            itemList.innerHTML = '';
+
+            if (displayItems.length === 0) {
+                itemList.innerHTML = `<div class="col-span-full text-center py-20 text-slate-500 font-light">조회 조건에 맞는 매물이 없습니다.</div>`;
+                return;
+            }
+
+            // 5. 보기 모드 그리드 반영
+            if (currentViewMode === 'grid-2') {
+                itemList.className = "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5";
+            } else if (currentViewMode === 'grid-1') {
+                itemList.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 max-w-4xl mx-auto";
+            } else if (currentViewMode === 'list') {
+                itemList.className = "flex flex-col gap-3 max-w-4xl mx-auto";
+            }
+
+            // 6. 카드 렌더링
+            displayItems.forEach(item => {
+                let timeDisplay = '';
+                if (item.platform === '중고나라') {
+                    timeDisplay = `
+                        <div class="relative group/time flex items-center cursor-help">
+                            <span class="text-cyan-400 font-semibold bg-cyan-500/10 border border-cyan-500/20 px-1.5 py-0.5 rounded text-[10px]">실시간 최신</span>
+                            <div class="absolute bottom-full right-0 mb-2 hidden group-hover/time:block w-48 p-2 bg-slate-900 border border-slate-700 text-[10px] text-slate-300 rounded-lg shadow-xl z-20 leading-tight">
+                                <i class="fa-solid fa-circle-info text-cyan-400 mr-1"></i>중고나라는 빠른 조회를 위해 실시간 최신순 매물로 통합 제공됩니다.
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    timeDisplay = `<span><i class="fa-regular fa-clock text-[9px] mr-1"></i>${item.timeAgo || '방금 전'}</span>`;
+                }
+
+                let cardHTML = '';
+
+                if (currentViewMode === 'list') {
+                    cardHTML = `
+                        <a href="${item.link}" target="_blank" class="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-3 hover:border-indigo-500/50 transition-all flex items-center gap-4 group shadow-lg">
+                            <div class="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 bg-slate-950 rounded-xl overflow-hidden">
+                                <img src="${item.imageUrl || 'https://via.placeholder.com/300?text=No+Image'}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                                <span class="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded text-white shadow ${item.platformColor}">
+                                    ${item.platform}
+                                </span>
+                            </div>
+                            <div class="flex flex-col justify-between flex-1 py-1 pr-2 min-w-0">
+                                <h4 class="text-xs sm:text-sm text-slate-200 font-medium line-clamp-2 mb-2 leading-snug group-hover:text-indigo-300 transition-colors">${item.title}</h4>
+                                <div>
+                                    <div class="text-sm sm:text-base font-extrabold text-white tracking-tight">${item.price.toLocaleString()}원</div>
+                                    <div class="text-[10px] sm:text-[11px] text-slate-500 mt-1 flex justify-between items-center">
+                                        <span><i class="fa-solid fa-location-dot text-[8px] mr-1"></i>${item.location}</span>
+                                        ${timeDisplay}
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    `;
+                } else {
+                    cardHTML = `
+                        <a href="${item.link}" target="_blank" class="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden hover:border-indigo-500/50 transition-all flex flex-col group shadow-lg">
+                            <div class="relative aspect-square bg-slate-950 overflow-hidden">
+                                <img src="${item.imageUrl || 'https://via.placeholder.com/300?text=No+Image'}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                                <span class="absolute top-2.5 left-2.5 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md text-white shadow-md ${item.platformColor}">
+                                    ${item.platform}
+                                </span>
+                            </div>
+                            <div class="p-3 sm:p-4 flex flex-col justify-between flex-1">
+                                <h4 class="text-xs sm:text-sm text-slate-200 font-medium line-clamp-2 mb-2 sm:mb-3 leading-snug group-hover:text-indigo-300 transition-colors">${item.title}</h4>
+                                <div>
+                                    <div class="text-sm sm:text-base font-extrabold text-white tracking-tight">${item.price.toLocaleString()}원</div>
+                                    <div class="text-[10px] sm:text-[11px] text-slate-500 mt-1.5 sm:mt-2 flex justify-between items-center">
+                                        <span class="truncate max-w-[50%]"><i class="fa-solid fa-location-dot text-[8px] mr-1"></i>${item.location}</span>
+                                        ${timeDisplay}
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    `;
+                }
+
+                itemList.innerHTML += cardHTML;
+            });
+        }
+    </script>
+</body>
+</html>
