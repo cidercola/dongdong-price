@@ -60,7 +60,7 @@ def calculate_time_ago(raw_time, now_ts):
 
 @app.get("/")
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "v2.6-fast"}
 
 @app.get("/api/search")
 def search_products(keyword: str):
@@ -71,11 +71,11 @@ def search_products(keyword: str):
     bunjang_count = 0
     joongna_count = 0
 
-    # 1. 번개장터 수집
-    for page in range(0, 4):
+    # 1. 번개장터 수집 (2페이지/60개로 단축하여 속도 대폭 향상)
+    for page in range(0, 2):
         try:
             bunjang_url = f"https://api.bunjang.co.kr/api/1/find_v2.json?q={encoded_keyword}&order=date&page={page}&n=30&stat_device=android"
-            res = requests.get(bunjang_url, headers=HEADERS, timeout=5)
+            res = requests.get(bunjang_url, headers=HEADERS, timeout=2.5)
             
             if res.status_code == 200:
                 data = res.json()
@@ -119,9 +119,9 @@ def search_products(keyword: str):
             print("번개장터 수집 오류:", e)
             break
 
-    # 2. 중고나라 수집
+    # 2. 중고나라 수집 (타임아웃 3초로 단축)
     joonggo_url = "https://search-api.joongna.com/v3/search/all"
-    for page in range(0, 3):
+    for page in range(0, 1):  # 최신 50개 1페이지 단으로 초고속 반환
         try:
             payload = {
                 "osType": 2,
@@ -145,7 +145,7 @@ def search_products(keyword: str):
                 headers=HEADERS, 
                 json=payload, 
                 impersonate="chrome120", 
-                timeout=10
+                timeout=3.0
             )
 
             if res.status_code == 200:
