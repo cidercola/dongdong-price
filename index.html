@@ -32,12 +32,12 @@
                 </div>
             </a>
             
-            <!-- 버전 표기 v1.8 -->
+            <!-- 버전 표기 v2.0 -->
             <div class="text-xs bg-slate-900/80 border border-slate-800 text-slate-300 px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
                 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span class="font-bold text-indigo-400">v1.8</span>
+                <span class="font-bold text-indigo-400">v2.0</span>
                 <span class="text-slate-500">|</span>
-                <span class="text-slate-400 font-medium">플랫폼별 맞춤 타임스탬프 로직 적용</span>
+                <span class="text-slate-400 font-medium">키워드 연속 포함 허용 & 이격 노이즈 필터링</span>
             </div>
         </nav>
 
@@ -99,7 +99,7 @@
             <div id="filterBar" class="hidden flex-col gap-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 mb-8 backdrop-blur-md">
                 
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                    <!-- 개수 요약 + 12시간 이내 수집 안내 문구 추가 -->
+                    <!-- 개수 요약 -->
                     <div class="flex flex-wrap items-center gap-3">
                         <span id="resultKeyword" class="text-sm font-bold text-slate-300"></span>
                         <span id="badgeTotal" class="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">총 0개</span>
@@ -309,13 +309,11 @@
             }
 
             filtered.forEach(item => {
-                // 중고나라 툴팁 UI 및 텍스트 분기 처리
                 let timeDisplay = '';
                 if (item.platform === '중고나라') {
                     timeDisplay = `
                         <div class="relative group/time flex items-center cursor-help">
                             <span class="text-cyan-400 font-semibold bg-cyan-500/10 border border-cyan-500/20 px-1.5 py-0.5 rounded text-[10px]">실시간 최신</span>
-                            <!-- 툴팁 풍선 -->
                             <div class="absolute bottom-full right-0 mb-2 hidden group-hover/time:block w-48 p-2 bg-slate-900 border border-slate-700 text-[10px] text-slate-300 rounded-lg shadow-xl z-20 leading-tight">
                                 <i class="fa-solid fa-circle-info text-cyan-400 mr-1"></i>중고나라는 빠른 조회를 위해 실시간 최신순 매물로 통합 제공됩니다.
                             </div>
